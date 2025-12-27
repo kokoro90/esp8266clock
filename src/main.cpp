@@ -5,28 +5,38 @@
  */
 
 #include "Arduino.h"
-#include "BasicESP8266.h"
-#include <OneButton.h>
-#include <TM1637Display.h>
+//#include "BasicESP8266.h"
+//#include <OneButton.h>
+//#include <TM1637Display.h>
+#include "Clock.h"
 
-const int buttonPin = 4;     // the number of the pushbutton pin
-const int ledPin =  5;       // the number of the LED pin
+//const int buttonPin = 4;     // the number of the pushbutton pin
+//const int ledPin =  5;       // the number of the LED pin
 
-OneButton button(buttonPin, false, false);
-TM1637Display display(D4, D3);
-BasicESP8266 bas;
+//OneButton button(buttonPin, false, false);
+//TM1637Display display(D4, D3);
+
+//const bool debug=true;
+//const int sigLed=2;                   // for signalling; -1 if not used
+//const bool gLowAct=true;               // Signal led low active
+//const bool setAccesspointPwd=false;    // Pwd not required when in AP mode (192.168.4.1)
+//const bool showWifiPassword=false;     // make Wifi passwd (in)visible
+
+//BasicESP8266 bas(debug,sigLed,gLowAct,setAccesspointPwd,showWifiPassword);
+
+Clock clock(D3, D4, 4, 5);
 // variable for storing the pushbutton status
-int buttonState = 0;
-int ledstate = 0;
-int count = 0;
+//int buttonState = 0;
+//int ledstate = 0;
+//int count = 0;
 
-void singleClick();
+/*void singleClick();
 void doubleClick();
 void longPress();
 void multiClick();
-
+*/
 void setup() {
-  bas.begin();
+/*  bas.begin();
   Serial.begin(115200);
   Serial.println("Welcome to ESP8266");
   display.setBrightness(7);
@@ -36,7 +46,7 @@ void setup() {
   button.attachLongPressStop(longPress);
   button.attachMultiClick(multiClick);
   pinMode(ledPin, OUTPUT);
-  display.showNumberDec(count);
+  display.showNumberDec(count);*/
 }
 
 void loop() {
@@ -44,9 +54,9 @@ void loop() {
   //buttonState = digitalRead(buttonPin);
   // check if the pushbutton is pressed.
   // if it is, the buttonState is HIGH
-  button.tick();
+  clock.button_tick();
 }
-
+/*
 void singleClick() {
   Serial.println("Button clicked");
   if(ledstate == 0) {
@@ -81,3 +91,4 @@ void multiClick() {
   count = 0;
   display.showNumberDec(count);
 }
+  */
