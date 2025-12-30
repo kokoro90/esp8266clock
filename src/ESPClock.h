@@ -7,9 +7,9 @@
 
 class ESPClock {
     public:
-//        ESPClock();
         ESPClock(int dio_pin, int clk_pin, int button_pin, int buzzer_pin);
         void button_tick();
+        void displayTime();
 
     private:
         BasicESP8266 _esp;
@@ -19,6 +19,10 @@ class ESPClock {
         int _buzzer_pin;
         int _count;
         int _buzzer_state;
+        uint32_t _lastUpdated = 0;
+        bool _showColon = false;
+
+        void _setEndPoints();
 };
 
 

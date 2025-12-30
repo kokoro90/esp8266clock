@@ -30,10 +30,10 @@ void BasicESP8266::begin()
   String chipMode=  ideMode == FM_QIO ? "QIO" : ideMode == FM_QOUT ? "QOUT" : ideMode == FM_DIO ? "DIO" : ideMode == FM_DOUT ? "DOUT" : "UNKNOWN";
 
 //---------------------------------------------- SPIFFS ----------------------------------------------------------------------------------------
-  
+
   if (LittleFS.begin())
   {
-    if (_debug)DPRLN ("\nSPIFFS Initialisierung....OK");
+    if (_debug)DPRLN ("\nSPIFFS Initialization....OK");
     FSInfo inf;
     LittleFS.info(inf);
     freeSpiffs=inf.totalBytes-inf.usedBytes;
@@ -66,10 +66,10 @@ void BasicESP8266::begin()
   _tryWifi();
 
 #ifdef ntp
-  timeClient=new NTPClient(ntpUDP, "de.pool.ntp.org",0);
+  timeClient=new NTPClient(ntpUDP, "pool.ntp.org", _tzoffset, _updateinterval);
   timeClient->begin();
   timeClient->update();
-#endif  
+#endif
 
   if (!apmode)
   {
@@ -201,7 +201,8 @@ void BasicESP8266::setPwd(String pwd) {_ePwd=pwd;}
 void BasicESP8266::setIp(String ip) {_eAdr.fromString(ip);}
 void BasicESP8266::setGateway(String gateway) {_eGateway.fromString(gateway);}
 void BasicESP8266::setNetmask(String netmask) {_eMask.fromString(netmask);}
-
+void BasicESP8266::setUpdateInterval(String updateinterval) {_updateinterval=updateinterval.toInt();}
+void BasicESP8266::setTZOffset(String tzoffset) {_tzoffset=tzoffset.toInt();}
 String BasicESP8266::htmlMask(String a, bool citation=true, String title="")
 {
   if (citation)

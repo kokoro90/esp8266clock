@@ -44,7 +44,8 @@
 #define ESIZE 16
 #define MAXARGS 30
 #define SHOWWIFIPWD false
-#define ntp false
+#define ntp true
+#define DEBUG_NTPClient 1
 
 
 class BasicESP8266
@@ -72,6 +73,8 @@ class BasicESP8266
     void setIp(String ip);
     void setGateway(String gateway);
     void setNetmask(String netmask);
+    void setUpdateInterval(String updateinterval);
+    void setTZOffset(String tzoffset);
     void setupWifi(AsyncWebServerRequest *req);
     bool saveConfig();
     
@@ -110,6 +113,8 @@ class BasicESP8266
     "<tr><td>Static IP address (empty=DHCP):</td><td><input type='text' size='15' maxlength='15' name='adr' id='adr' value='##ip'></td></tr>\n"
     "<tr><td>Gateway:</td><td><input type='text' size='15' maxlength='15' name='gateway' id='gateway' value='##gateway'></td></tr>\n"
     "<tr><td>Netmask:</td><td><input type='text' size='15' maxlength='15' name='mask' id='mask' value='##netmask'></td></tr>"
+    "<tr><td>NTP Update Interval:</td><td><input type='text' size='15' maxlength='15' name='updateinterval' id='updateinterval' value='##updateinterval'></td></tr>"
+    "<tr><td>Timezone offset (in seconds):</td><td><input type='text' size='15' maxlength='15' name='tzoffset' id='tzoffset' value='##tzoffset'></td></tr>"
     "<tr><td>&#160;</td><td>&#160;</td></tr>\n"
     "</table>\n";
     String wifiHtml3=
@@ -162,6 +167,8 @@ class BasicESP8266
     IPAddress _eAdr;
     IPAddress _eGateway;
     IPAddress _eMask;
+    int _updateinterval=10800000;
+    int _tzoffset=-21600;
     String _argVal[MAXARGS];
     String _argKey[MAXARGS];
     int _argCount = 0;
