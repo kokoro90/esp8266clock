@@ -26,22 +26,21 @@ void ESPClock::displayTime() {
     uint32_t current_time = now();
 
     if(_lastUpdated < current_time - 60 || _lastUpdated == 0) {
-        Serial.println("Calling getEpochTime()");
         uint32_t ntp_time = _esp.getEpochTime();
         setTime(ntp_time);
         _lastUpdated = current_time;
-        Serial.print("Setting _last_updated to: ");
-        Serial.println(_lastUpdated);
     }
 
     int hours = (current_time % 86400L) / 3600;
     int minutes = (current_time % 3600) / 60;
     int displayTime = hours * 100 + minutes;
-    Serial.print("Current system time: ");
-    Serial.println(current_time);
-    
-    _display.showNumberDecEx(displayTime, _showColon ? 0x40 : 0x00, false, 4, 0);
-    _showColon = !_showColon;
+
+    if(displayTime < 100) {
+        _display.showNumberDecEx(displayTime, _showColon, true, 4, 0);
+    } else {
+        _display.showNumberDecEx(displayTime, _showColon, false, 4, 0);
+    }
+//    _showColon = !_showColon;
 }
 
 void ESPClock::handleClick() {

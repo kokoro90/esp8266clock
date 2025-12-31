@@ -20,7 +20,7 @@ class ESPClock {
         int _count;
         int _buzzer_state;
         uint32_t _lastUpdated = 0;
-        bool _showColon = false;
+        int _showColon = 0x40;
 
         void _setEndPoints();
 };
