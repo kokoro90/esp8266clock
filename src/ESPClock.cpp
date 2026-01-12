@@ -25,29 +25,40 @@ void ESPClock::button_tick() {
 void ESPClock::displayTime() {
     uint32_t current_time = now();
 
-    if(_lastUpdated < current_time - 60 || _lastUpdated == 0) {
+    if(_lastUpdated < current_time - (_esp.getUpdateInterval() / 1000) || _lastUpdated == 0) {
         uint32_t ntp_time = _esp.getEpochTime();
         setTime(ntp_time);
         _lastUpdated = current_time;
+        Serial.print("Retrieved time from NTP server: ");
+        Serial.print((current_time % 86400L) / 3600);
+        Serial.print(":");
+        Serial.print((current_time % 3600) / 60 / 10);
+        Serial.print(((current_time % 3600) / 60) % 10);
     }
 
+    uint8_t clock_data[4];
     int hours = (current_time % 86400L) / 3600;
-    int minutes = (current_time % 3600) / 60;
-    int displayTime = hours * 100 + minutes;
+    clock_data[0] = hours >= 10 ? _display.encodeDigit(hours / 10) : 0;
+    clock_data[1] = _display.encodeDigit(hours % 10) | _showColon;
 
-    if(displayTime < 100) {
-        _display.showNumberDecEx(displayTime, _showColon, true, 4, 0);
+    int minutes = (current_time % 3600) / 60;
+    clock_data[2] = _display.encodeDigit(minutes / 10);
+    clock_data[3] = _display.encodeDigit(minutes % 10);
+
+    _display.setSegments(clock_data);
+
+    if(_blink) {
+        _showColon = _showColon == 128 ? 0 : 128;
     } else {
-        _display.showNumberDecEx(displayTime, _showColon, false, 4, 0);
+        _showColon = 128;
     }
-//    _showColon = !_showColon;
 }
 
 void ESPClock::handleClick() {
     Serial.println("Button clicked");
     _buzzer_state = !_buzzer_state;
     digitalWrite(_buzzer_pin, _buzzer_state);
-//    _display.showNumberDec(++_count);
+//     _display.showNumberDec(++_count);
 }
 
 void ESPClock::_setEndPoints() {
@@ -60,6 +71,16 @@ void ESPClock::_setEndPoints() {
             strcat(brightnessResponse, itoa(newBrightness, brightnessStr, 10));
             request->send(200, "text/plain", brightnessResponse);
         }
+    });
+
+    _esp.server->on("/blink/on", HTTP_GET, [&](AsyncWebServerRequest *request) {
+        _blink = true;
+        request->send(200, "text/pain", "Turning blinking colons on");
+    });
+
+    _esp.server->on("/blink/off", HTTP_GET, [&](AsyncWebServerRequest *request) {
+        _blink = false;
+        request->send(200, "text/pain", "Turning blinking colons off");
     });
 
     _esp.server->on("/test", HTTP_GET, [&](AsyncWebServerRequest *request) {

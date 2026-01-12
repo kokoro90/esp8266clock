@@ -18,5 +18,4 @@ void loop() {
   }
 
   espclock->button_tick();
-  delay(10);
 }

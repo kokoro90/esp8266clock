@@ -94,8 +94,10 @@ class BasicESP8266
     WiFiUDP ntpUDP;
     NTPClient *timeClient;
     uint32_t getEpochTime();
+
 #endif
 
+    unsigned long getUpdateInterval();
     bool apmode=true;
     bool mqtt=false;
     unsigned long connectedAt=0;
@@ -167,7 +169,7 @@ class BasicESP8266
     IPAddress _eAdr;
     IPAddress _eGateway;
     IPAddress _eMask;
-    int _updateinterval=10800000;
+    unsigned long _updateinterval=1800000;
     int _tzoffset=-21600;
     String _argVal[MAXARGS];
     String _argKey[MAXARGS];

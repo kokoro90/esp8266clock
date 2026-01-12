@@ -91,6 +91,12 @@ uint32_t BasicESP8266::getEpochTime()
   return timeClient->getEpochTime();
 }
 #endif
+
+unsigned long BasicESP8266::getUpdateInterval()
+{
+  return _updateinterval;
+}
+
 //-----------------------------------------------  SigLed functions ------------------------------------------------------------------------
 
 bool BasicESP8266::setSig(uint32_t onDur, uint32_t offDur, uint8_t sigCount)
