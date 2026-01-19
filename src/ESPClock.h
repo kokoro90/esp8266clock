@@ -7,7 +7,7 @@
 
 class ESPClock {
     public:
-        ESPClock(int dio_pin, int clk_pin, int button_pin, int buzzer_pin);
+        ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buzzer_pin);
         void button_tick();
         void displayTime();
 
@@ -22,6 +22,7 @@ class ESPClock {
         uint32_t _lastUpdated = 0;
         int _showColon = 128;
         bool _blink = false;
+        bool _debug;
 
         void _setEndPoints();
 };

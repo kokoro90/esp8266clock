@@ -1,8 +1,9 @@
 #include <ESPClock.h>
 #include <TimeLib.h>
 
-ESPClock::ESPClock(int dio_pin, int clk_pin, int button_pin, int buzzer_pin)
-    : _esp(true, -1, true, false, false), _button(button_pin, false, false), _display(clk_pin, dio_pin) {
+ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buzzer_pin)
+    : _esp(false, 100, true, false, false), _button(button_pin, false, false), _display(clk_pin, dio_pin) {
+    _debug = debug;
     _buzzer_pin = buzzer_pin;
     pinMode(_buzzer_pin, OUTPUT);
 
@@ -29,11 +30,14 @@ void ESPClock::displayTime() {
         uint32_t ntp_time = _esp.getEpochTime();
         setTime(ntp_time);
         _lastUpdated = current_time;
-        Serial.print("Retrieved time from NTP server: ");
-        Serial.print((current_time % 86400L) / 3600);
-        Serial.print(":");
-        Serial.print((current_time % 3600) / 60 / 10);
-        Serial.print(((current_time % 3600) / 60) % 10);
+
+        if(_debug) {
+            Serial.print("Retrieved time from NTP server: ");
+            Serial.print((current_time % 86400L) / 3600);
+            Serial.print(":");
+            Serial.print((current_time % 3600) / 60 / 10);
+            Serial.print(((current_time % 3600) / 60) % 10);
+        }
     }
 
     uint8_t clock_data[4];
@@ -55,7 +59,7 @@ void ESPClock::displayTime() {
 }
 
 void ESPClock::handleClick() {
-    Serial.println("Button clicked");
+    if(_debug) Serial.println("Button clicked");
     _buzzer_state = !_buzzer_state;
     digitalWrite(_buzzer_pin, _buzzer_state);
 //     _display.showNumberDec(++_count);

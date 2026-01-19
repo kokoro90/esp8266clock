@@ -1,12 +1,17 @@
 #include "Arduino.h"
 #include "ESPClock.h"
 
+#define DIO_PIN 2
+#define CLK_PIN 0
+#define BUTTON_PIN 1
+#define BUZZER_PIN 3
+
 ESPClock *espclock;
 long previousMillis = 0;
 const long interval = 1000;
 
 void setup() {
-  espclock = new ESPClock(0, 2, 4, 5);
+  espclock = new ESPClock(false, DIO_PIN, CLK_PIN, BUTTON_PIN, BUZZER_PIN);
 }
 
 void loop() {

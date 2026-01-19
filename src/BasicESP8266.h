@@ -45,8 +45,6 @@
 #define MAXARGS 30
 #define SHOWWIFIPWD false
 #define ntp true
-#define DEBUG_NTPClient 1
-
 
 class BasicESP8266
 {
