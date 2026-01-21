@@ -3,8 +3,9 @@
 
 #define DIO_PIN 2
 #define CLK_PIN 0
-#define BUTTON_PIN 1
-#define BUZZER_PIN 3
+#define BUTTON_PIN 3
+#define BUZZER_PIN 1
+
 
 ESPClock *espclock;
 long previousMillis = 0;

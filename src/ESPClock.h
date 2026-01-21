@@ -23,8 +23,13 @@ class ESPClock {
         int _showColon = 128;
         bool _blink = false;
         bool _debug;
+        uint16_t _alarmTime;
+        bool _alarmActive = false;
+        bool _alarmOn = false;
 
         void _setEndPoints();
+        char *_getAlarmTimeStr();
+        void _handleAlarm();
 };
 
 
