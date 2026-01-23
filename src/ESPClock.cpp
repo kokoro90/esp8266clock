@@ -7,10 +7,16 @@ ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buz
     _buzzer_pin = buzzer_pin;
     pinMode(_buzzer_pin, OUTPUT);
 
-    _button.attachClick([](void *ctx){
+//    _button.setDebounceMs(25);
+    _button.attachDoubleClick([](void *ctx){
         ((ESPClock*)ctx)->handleClick();
     }, this);
 
+    /*
+    _button.attachLongPressStop([](void *ctx) {
+        ((ESPClock*)ctx)->handleLongPress();
+    }, this);
+*/
     _esp.begin();
     _count = 0;
     _buzzer_state = LOW;
@@ -54,7 +60,7 @@ void ESPClock::displayTime() {
             Serial.println(minutes);
         }
 
-        if(_alarmTime / 100 == hours && _alarmTime % 100 == minutes) {
+        if(!_alarmOn && _alarmTime / 100 == hours && _alarmTime % 100 == minutes) {
             if(_debug) Serial.println("Turning on alarm");
             _alarmOn = true;
             _buzzer_state = HIGH;
@@ -91,18 +97,36 @@ void ESPClock::displayTime() {
 }
 
 void ESPClock::handleClick() {
-    if(_debug) Serial.println("Button clicked");
+
+/*    if(_debug) Serial.println("Button clicked");
     if(_alarmOn) {
-        Serial.println("Turning off alarm");
+        if(_debug) Serial.println("Turning off alarm");
         _alarmOn = false;
         _buzzer_state = LOW;
+        _button_presses++;
         digitalWrite(_buzzer_pin, _buzzer_state);
-    }
+    }*/
+}
+
+/*
+void ESPClock::handleLongPress() {
+    int hours = _alarmTime / 100;
+    int minutes = _alarmTime % 60;
+    uint8_t clock_data[4];
+    clock_data[0] = hours >= 10 ? _display.encodeDigit(hours / 10) : 0;
+    clock_data[1] = _display.encodeDigit(hours % 10) | _showColon;
+    clock_data[2] = _display.encodeDigit(minutes / 10);
+    clock_data[3] = _display.encodeDigit(minutes % 10);
+
+    _display.setSegments(clock_data);
+    delay(3000);
+}
+
+*/
 
 //    _buzzer_state = !_buzzer_state;
 //    digitalWrite(_buzzer_pin, _buzzer_state);
 //     _display.showNumberDec(++_count);
-}
 
 void ESPClock::_setEndPoints() {
     _esp.server->on("/brightness", HTTP_GET, [&](AsyncWebServerRequest *request) {
@@ -152,13 +176,12 @@ void ESPClock::_setEndPoints() {
         request->send(200, "text/plain", response);
     });
 
-    _esp.server->on("/togglealarm", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        if(_alarmActive)
-            _alarmActive = false;
-        else
-            _alarmActive = true;
+    _esp.server->on("/alarmoff", HTTP_GET, [&](AsyncWebServerRequest *request) {
+        _alarmOn = false;
+        _buzzer_state = LOW;
+        digitalWrite(_buzzer_pin, _buzzer_state);
 
-        request->send(200, "text/plain", "toggled alarm");
+        request->send(200, "text/plain", "turned off alarm");
     });
 
     _esp.server->on("/isactive", HTTP_GET, [&](AsyncWebServerRequest *request) {
@@ -179,6 +202,12 @@ void ESPClock::_setEndPoints() {
             request->send(200, "text/plain", "Alarm is on\n");
         else
             request->send(200, "text/plain", "Alarm is off\n");
+    });
+
+    _esp.server->on("/buttonpresses", HTTP_GET, [&](AsyncWebServerRequest *request) {
+        char numpresses[6];
+        itoa(_button_presses, numpresses, 10);
+        request->send(200, "text/plain", numpresses);
     });
 
     _esp.server->on("/currenttime", HTTP_GET, [&](AsyncWebServerRequest *request) {

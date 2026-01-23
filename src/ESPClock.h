@@ -16,6 +16,7 @@ class ESPClock {
         OneButton _button;
         TM1637Display _display;
         void handleClick();
+//        void handleLongPress();
         int _buzzer_pin;
         int _count;
         int _buzzer_state;
@@ -26,6 +27,7 @@ class ESPClock {
         uint16_t _alarmTime;
         bool _alarmActive = false;
         bool _alarmOn = false;
+        int _button_presses = 0;
 
         void _setEndPoints();
         char *_getAlarmTimeStr();

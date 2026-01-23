@@ -16,12 +16,12 @@ void setup() {
 }
 
 void loop() {
+  espclock->button_tick();
+
   unsigned long currentMillis = millis();
 
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
     espclock->displayTime();
   }
-
-  espclock->button_tick();
 }
