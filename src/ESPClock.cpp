@@ -1,26 +1,37 @@
 #include <ESPClock.h>
 #include <TimeLib.h>
+#include <ArduinoJson.h>
 
 ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buzzer_pin)
-    : _esp(debug, 100, true, false, false), _button(button_pin, false, false), _display(clk_pin, dio_pin) {
+    : _esp(debug, 100, true, false, false), _button(button_pin, true, false), _display(clk_pin, dio_pin) {
     _debug = debug;
     _buzzer_pin = buzzer_pin;
     pinMode(_buzzer_pin, OUTPUT);
 
-//    _button.setDebounceMs(25);
-    _button.attachDoubleClick([](void *ctx){
+    _button.attachClick([](void *ctx){
         ((ESPClock*)ctx)->handleClick();
     }, this);
 
-    /*
     _button.attachLongPressStop([](void *ctx) {
         ((ESPClock*)ctx)->handleLongPress();
     }, this);
-*/
+
     _esp.begin();
     _count = 0;
     _buzzer_state = LOW;
-    _display.setBrightness(7);
+
+    File file = LittleFS.open("/brightness", "r");
+
+    if(file != -1) {
+        JsonDocument doc;
+        deserializeJson(doc, file);
+
+        if(doc["level"].is<int>() && doc["level"].as<int>() >= 0 && doc["level"].as<int>() <= 7) {
+            _brightness = doc["level"].as<int>();
+        }
+    }
+
+    _display.setBrightness(_brightness);
     _display.clear();
     _setEndPoints();
 }
@@ -98,23 +109,25 @@ void ESPClock::displayTime() {
 
 void ESPClock::handleClick() {
 
-/*    if(_debug) Serial.println("Button clicked");
+    if(_debug) Serial.println("Button clicked");
     if(_alarmOn) {
         if(_debug) Serial.println("Turning off alarm");
         _alarmOn = false;
         _buzzer_state = LOW;
         _button_presses++;
         digitalWrite(_buzzer_pin, _buzzer_state);
-    }*/
+    } else {
+        _buzzer_state = !_buzzer_state;
+        digitalWrite(_buzzer_pin, _buzzer_state);
+    }
 }
 
-/*
 void ESPClock::handleLongPress() {
     int hours = _alarmTime / 100;
-    int minutes = _alarmTime % 60;
+    int minutes = _alarmTime % 100;
     uint8_t clock_data[4];
     clock_data[0] = hours >= 10 ? _display.encodeDigit(hours / 10) : 0;
-    clock_data[1] = _display.encodeDigit(hours % 10) | _showColon;
+    clock_data[1] = _display.encodeDigit(hours % 10) | 128;
     clock_data[2] = _display.encodeDigit(minutes / 10);
     clock_data[3] = _display.encodeDigit(minutes % 10);
 
@@ -122,22 +135,52 @@ void ESPClock::handleLongPress() {
     delay(3000);
 }
 
-*/
-
-//    _buzzer_state = !_buzzer_state;
-//    digitalWrite(_buzzer_pin, _buzzer_state);
-//     _display.showNumberDec(++_count);
-
 void ESPClock::_setEndPoints() {
+    _esp.server->on("/clock", HTTP_GET, [&](AsyncWebServerRequest *request) {
+            File f = LittleFS.open("/index.html", "r");
+
+            if (!f) {
+                if (_debug) Serial.println("no index.html");
+                request->send(404, "text/plain", "No index.html file");
+                return;
+            }
+
+            request->send(LittleFS, "/index.html", "text/html");
+    });
+
     _esp.server->on("/brightness", HTTP_GET, [&](AsyncWebServerRequest *request) {
+        JsonDocument doc;
+
         if (request->hasParam("level")) {
             int newBrightness = request->getParam("level")->value().toInt();
+            File file = LittleFS.open("/brightness", "r");
+
+            if(file != -1) {
+                deserializeJson(doc, file);
+                doc["level"] = newBrightness;
+                
+                if(_brightness != newBrightness) {
+                    file = LittleFS.open("/brightness", "w");
+                    serializeJson(doc, file);
+                }
+            } else {
+                file = LittleFS.open("/brightness", "w");
+
+                if(file != -1) {
+                    doc["level"] = newBrightness;
+                    serializeJson(doc, file);
+                }
+            }
+
             _display.setBrightness(newBrightness);
-            char brightnessResponse[34] = "Set display brightness to level ";
-            char brightnessStr[2];
-            strcat(brightnessResponse, itoa(newBrightness, brightnessStr, 10));
-            request->send(200, "text/plain", brightnessResponse);
+            _brightness = newBrightness;
+        } else {
+            doc["level"] = _brightness;
         }
+
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "text/json", response);
     });
 
     _esp.server->on("/blink/on", HTTP_GET, [&](AsyncWebServerRequest *request) {
@@ -221,7 +264,7 @@ void ESPClock::_setEndPoints() {
         timeStr[3] = minutes / 10 + 48;
         timeStr[4] = minutes % 10 + 48;
         timeStr[5] = '\n';
-        timeStr[8] = '\0';
+        timeStr[6] = '\0';
 
         request->send(200, "text/plain", timeStr);
     });

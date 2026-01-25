@@ -15,8 +15,9 @@ class ESPClock {
         BasicESP8266 _esp;
         OneButton _button;
         TM1637Display _display;
+        int _brightness = 3;
         void handleClick();
-//        void handleLongPress();
+        void handleLongPress();
         int _buzzer_pin;
         int _count;
         int _buzzer_state;
