@@ -3,16 +3,15 @@
 
 #define DIO_PIN 2
 #define CLK_PIN 0
-#define BUTTON_PIN 4
-#define BUZZER_PIN 5
-
+#define BUTTON_PIN 1
+#define BUZZER_PIN 3
 
 ESPClock *espclock;
 long previousMillis = 0;
 const long interval = 1000;
 
 void setup() {
-  espclock = new ESPClock(true, DIO_PIN, CLK_PIN, BUTTON_PIN, BUZZER_PIN);
+  espclock = new ESPClock(false, DIO_PIN, CLK_PIN, BUTTON_PIN, BUZZER_PIN);
 }
 
 void loop() {
