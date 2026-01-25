@@ -12,7 +12,7 @@ long previousMillis = 0;
 const long interval = 1000;
 
 void setup() {
-  espclock = new ESPClock(false, DIO_PIN, CLK_PIN, BUTTON_PIN, BUZZER_PIN);
+  espclock = new ESPClock(true, DIO_PIN, CLK_PIN, BUTTON_PIN, BUZZER_PIN);
 }
 
 void loop() {

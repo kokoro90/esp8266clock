@@ -71,7 +71,7 @@ void ESPClock::displayTime() {
             Serial.println(minutes);
         }
 
-        if(!_alarmOn && _alarmTime / 100 == hours && _alarmTime % 100 == minutes) {
+        if(_alarmActive && !_alarmOn && _alarmTime / 100 == hours && _alarmTime % 100 == minutes) {
             if(_debug) Serial.println("Turning on alarm");
             _alarmOn = true;
             _buzzer_state = HIGH;
