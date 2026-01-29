@@ -22,6 +22,7 @@ class ESPClock {
         int _count;
         int _buzzer_state;
         uint32_t _lastUpdated = 0;
+        uint32_t _previousTime = 0;
         int _showColon = 128;
         bool _blink = false;
         bool _debug;

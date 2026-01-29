@@ -9,7 +9,7 @@
 
 ESPClock *espclock;
 long previousMillis = 0;
-const long interval = 1000;
+const long interval = 500;
 
 void setup() {
   espclock = new ESPClock(true, DIO_PIN, CLK_PIN, BUTTON_PIN, BUZZER_PIN);
