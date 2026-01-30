@@ -279,13 +279,11 @@ void ESPClock::_setEndPoints() {
     AsyncCallbackJsonWebHandler* handler = new AsyncCallbackJsonWebHandler("/clockconfig", [this](AsyncWebServerRequest *request, JsonVariant &json) {
         JsonDocument clockconfig;
         String response = "";
-        File configFile = LittleFS.open("/clockconfig.json", "r");
-
-        if(_debug) Serial.println("Trying to open clockconfig.json");
-
-        if(configFile != -1) {
-            if(_debug) Serial.println("Opened clockconfig.json");
-
+        File configFile;
+        
+        if(LittleFS.exists("clockconfig.json")) {
+            if(_debug) Serial.println("Trying to open clockconfig.json");
+            configFile = LittleFS.open("/clockconfig.json", "r");
             deserializeJson(clockconfig, configFile);
             configFile.close();
         } else {
@@ -341,9 +339,12 @@ void ESPClock::_setEndPoints() {
 
             serializeJson(clockconfig, response);
         } else if(request->method() == HTTP_GET) {
-            if(_debug) Serial.println("Sending current clockconfig.json data");
-
             serializeJson(clockconfig, response);
+
+            if(_debug) {
+                Serial.println("Sending current clockconfig.json data:");
+                Serial.println(response);
+            }
         }
 
         request->send(200, "application/json", response);
