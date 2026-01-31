@@ -4,6 +4,7 @@
 #include "BasicESP8266.h"
 #include <OneButton.h>
 #include <TM1637Display.h>
+#include <ArduinoJson.h>
 
 class ESPClock {
     public:
@@ -15,9 +16,8 @@ class ESPClock {
         BasicESP8266 _esp;
         OneButton _button;
         TM1637Display _display;
+        JsonDocument _clockConfig;
         int _brightness = 3;
-        void handleClick();
-        void handleLongPress();
         int _buzzer_pin;
         int _count;
         int _buzzer_state;
@@ -34,6 +34,9 @@ class ESPClock {
         void _setEndPoints();
         char *_getAlarmTimeStr();
         void _handleAlarm();
+        void _handleClick();
+        void _handleLongPress();
+        void _applyClockConfig();
 };
 
 

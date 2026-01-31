@@ -1,6 +1,5 @@
 #include <ESPClock.h>
 #include <TimeLib.h>
-#include <ArduinoJson.h>
 
 ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buzzer_pin)
     : _esp(debug, 100, true, false, false), _button(button_pin, true, false), _display(clk_pin, dio_pin) {
@@ -9,26 +8,32 @@ ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buz
     pinMode(_buzzer_pin, OUTPUT);
 
     _button.attachClick([](void *ctx){
-        ((ESPClock*)ctx)->handleClick();
+        ((ESPClock*)ctx)->_handleClick();
     }, this);
 
     _button.attachLongPressStop([](void *ctx) {
-        ((ESPClock*)ctx)->handleLongPress();
+        ((ESPClock*)ctx)->_handleLongPress();
     }, this);
 
     _esp.begin();
     _count = 0;
     _buzzer_state = LOW;
 
-    File file = LittleFS.open("/brightness", "r");
+    File configFile;
 
-    if(file != -1) {
-        JsonDocument doc;
-        deserializeJson(doc, file);
+    if(LittleFS.exists("/clockconfig.json")) {
+        configFile = LittleFS.open("/clockconfig.json", "r");
+        deserializeJson(_clockConfig, configFile);
+        _applyClockConfig();
+    } else {
+        _clockConfig["brightness"] = _brightness;
+        _clockConfig["blink"] = _blink;
+        _clockConfig["alarmtime"] = _alarmTime;
+        _clockConfig["alarmactive"] = _alarmActive;
 
-        if(doc["level"].is<int>() && doc["level"].as<int>() >= 0 && doc["level"].as<int>() <= 7) {
-            _brightness = doc["level"].as<int>();
-        }
+        configFile = LittleFS.open("/clockconfig.json", "w");
+        serializeJson(_clockConfig, configFile);
+        configFile.close();
     }
 
     _display.setBrightness(_brightness);
@@ -111,7 +116,7 @@ void ESPClock::displayTime() {
     _previousTime = current_time;
 }
 
-void ESPClock::handleClick() {
+void ESPClock::_handleClick() {
 
     if(_debug) Serial.println("Button clicked");
     if(_alarmOn) {
@@ -126,7 +131,7 @@ void ESPClock::handleClick() {
     }
 }
 
-void ESPClock::handleLongPress() {
+void ESPClock::_handleLongPress() {
     int hours = _alarmTime / 100;
     int minutes = _alarmTime % 100;
     uint8_t clock_data[4];
@@ -178,6 +183,7 @@ void ESPClock::_setEndPoints() {
                     serializeJson(doc, file);
                 }
             }
+
 
             _display.setBrightness(newBrightness);
             _brightness = newBrightness;
@@ -367,4 +373,11 @@ char *ESPClock::_getAlarmTimeStr() {
         alarmTimeStr[5] = '\0';
 
         return alarmTimeStr;
+}
+
+void ESPClock::_applyClockConfig() {
+    _brightness = _clockConfig["brightness"];
+    _blink =_clockConfig["blink"];
+    _alarmTime = _clockConfig["alarmtime"];
+    _alarmActive = _clockConfig["alarmactive"];   
 }
