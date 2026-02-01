@@ -493,6 +493,9 @@ void BasicESP8266::_setserver()
 
   
   server->onNotFound([](AsyncWebServerRequest *request) {
+      request->url();
+      request->method();
+      request->
       request->send(404, "text/plain", "Not found");
    });  
 

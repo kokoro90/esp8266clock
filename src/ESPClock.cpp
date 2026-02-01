@@ -24,7 +24,6 @@ ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buz
     if(LittleFS.exists("/clockconfig.json")) {
         configFile = LittleFS.open("/clockconfig.json", "r");
         deserializeJson(_clockConfig, configFile);
-        _applyClockConfig();
     } else {
         _clockConfig["brightness"] = _brightness;
         _clockConfig["blink"] = _blink;
@@ -36,7 +35,7 @@ ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buz
         configFile.close();
     }
 
-    _display.setBrightness(_brightness);
+    _applyClockConfig();
     _display.clear();
     _setEndPoints();
 }
@@ -283,72 +282,57 @@ void ESPClock::_setEndPoints() {
     });
 
     AsyncCallbackJsonWebHandler* handler = new AsyncCallbackJsonWebHandler("/clockconfig", [this](AsyncWebServerRequest *request, JsonVariant &json) {
-        JsonDocument clockconfig;
+        if(_debug) Serial.println("Getting clockconfig request");
+        JsonObject newClockConfig;
         String response = "";
         File configFile;
-        
-        if(LittleFS.exists("clockconfig.json")) {
-            if(_debug) Serial.println("Trying to open clockconfig.json");
-            configFile = LittleFS.open("/clockconfig.json", "r");
-            deserializeJson(clockconfig, configFile);
-            configFile.close();
-        } else {
-            if(_debug) Serial.println("Creating new clockconfig.json");
-
-            clockconfig["brightness"] = _brightness;
-            clockconfig["blink"] = _blink;
-            clockconfig["alarmtime"] = _alarmTime;
-            clockconfig["alarmactive"] = _alarmActive;
-
-            configFile = LittleFS.open("/clockconfig.json", "w");
-            serializeJson(clockconfig, configFile);
-            configFile.close();
-        }
 
         if(request->method() == HTTP_POST && json != NULL) {
             if(_debug) Serial.println("Reading in new clockconfig data");
 
-            JsonObject jsonObj = json.as<JsonObject>();
+            newClockConfig = json.as<JsonObject>();
             int changes = 0;
 
-            if(jsonObj.containsKey("brightness") && jsonObj["brightness"] != _brightness){
-                _brightness = jsonObj["brightness"];
-                clockconfig["brightness"] = _brightness;
+            if(newClockConfig.containsKey("brightness") &&  newClockConfig["brightness"] != _brightness){
+                _brightness = newClockConfig["brightness"];
+                _clockConfig["brightness"] = _brightness;
                 changes++;
             }
 
-            if(jsonObj.containsKey("blink") && jsonObj["blink"] != _blink){
-                _blink = jsonObj["blink"];
-                clockconfig["blink"] = _blink;
+            if(newClockConfig.containsKey("blink") && newClockConfig["blink"] != _blink){
+                _blink = newClockConfig["blink"];
+                _clockConfig["blink"] = _blink;
                 changes++;
             }
 
-            if(jsonObj.containsKey("alarmtime") && jsonObj["alarmtime"] != _alarmTime){
-                _alarmTime = jsonObj["alarmtime"];
-                clockconfig["alarmtime"] = _alarmTime;
+            if(newClockConfig.containsKey("alarmtime") && newClockConfig["alarmtime"] != _alarmTime){
+                _alarmTime = newClockConfig["alarmtime"];
+                _clockConfig["alarmtime"] = _alarmTime;
                 changes++;
             }
 
-            if(jsonObj.containsKey("alarmactive") && jsonObj["alarmactive"] != _alarmActive){
-                _alarmActive = jsonObj["alarmactive"];
-                clockconfig["alarmactive"] = _alarmActive;
+            if(newClockConfig.containsKey("alarmactive") && newClockConfig["alarmactive"] != _alarmActive){
+                _alarmActive = newClockConfig["alarmactive"];
+                _clockConfig["alarmactive"] = _alarmActive;
                 changes++;
             }
 
-            if(changes > 0) {
+            if(changes > 0 && newClockConfig.containsKey("persist") && newClockConfig["persist"] == true) {
                 if(_debug) Serial.println("Writing new clockconfig data");
 
                 configFile = LittleFS.open("/clockconfig.json", "w");
-                serializeJson(clockconfig, configFile);
+                serializeJson(_clockConfig, configFile);
                 configFile.close();
             }
 
-            serializeJson(clockconfig, response);
+            _applyClockConfig();
+            serializeJson(newClockConfig, response);
+
         } else if(request->method() == HTTP_GET) {
-            serializeJson(clockconfig, response);
+            serializeJson(_clockConfig, response);
 
             if(_debug) {
-                Serial.println("Sending current clockconfig.json data:");
+                Serial.println("Sending current clockconfig data:");
                 Serial.println(response);
             }
         }
@@ -377,7 +361,8 @@ char *ESPClock::_getAlarmTimeStr() {
 
 void ESPClock::_applyClockConfig() {
     _brightness = _clockConfig["brightness"];
-    _blink =_clockConfig["blink"];
+    _display.setBrightness(_brightness);
+    _blink = _clockConfig["blink"];
     _alarmTime = _clockConfig["alarmtime"];
     _alarmActive = _clockConfig["alarmactive"];   
 }

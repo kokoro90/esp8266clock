@@ -1,4 +1,66 @@
 <!DOCTYPE html>
 <html>
-    <h1>Welcome to ESP8266</h1>
+    <body>
+        <h1>Welcome to ESP8266</h1>
+        <button id="loadconfig" onclick="getData();">Load Config</button>
+        <span id="dec" onclick="decBrightness();">-</span><span id="brightness"></span><span id="inc" onclick="incBrightness();">+</span>
+    </body>
+    <script>
+
+
+        async function decBrightness() {
+            brightnessspan = document.getElementById("brightness");
+            brightness = parseInt(brightnessspan.textContent);
+
+            if(brightness > 0) {
+                brightness--;
+
+                const response = await fetch("/clockconfig", {
+                    method: "POST",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ brightness: brightness }),
+                });
+                const result = await response.json();
+                brightnessspan.textContent = result.brightness;
+            }
+        };
+
+        async function incBrightness() {
+            brightnessspan = document.getElementById("brightness");
+            brightness = parseInt(brightnessspan.textContent);
+
+            if(brightness < 7) {
+                brightness++;
+
+                const response = await fetch("/clockconfig", {
+                    method: "POST",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ brightness: brightness }),
+                });
+                const result = await response.json();
+                brightnessspan.textContent = result.brightness;
+            }
+        };
+
+        async function getData() {
+            const url = "/clockconfig";
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`Response status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                brightnessspan = document.getElementById("brightness");
+                brightnessspan.textContent = result.brightness;
+                console.log(result);
+            } catch (error) {
+                console.error(error.message);
+            }
+        }
+    </script>
 </html>
