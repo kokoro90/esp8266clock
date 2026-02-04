@@ -29,6 +29,7 @@ ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buz
         _clockConfig["blink"] = _blink;
         _clockConfig["alarmtime"] = _alarmTime;
         _clockConfig["alarmactive"] = _alarmActive;
+        _clockConfig["twelvehours"] = _twelveHours;
 
         configFile = LittleFS.open("/clockconfig.json", "w");
         serializeJson(_clockConfig, configFile);
@@ -98,6 +99,10 @@ void ESPClock::displayTime() {
     }
 
     uint8_t clock_data[4];
+
+    if(_twelveHours)
+        hours = hours > 12 ? hours - 12 : hours;
+
     clock_data[0] = hours >= 10 ? _display.encodeDigit(hours / 10) : 0;
     clock_data[1] = _display.encodeDigit(hours % 10) | _showColon;
     clock_data[2] = _display.encodeDigit(minutes / 10);
@@ -317,16 +322,37 @@ void ESPClock::_setEndPoints() {
                 changes++;
             }
 
-            if(changes > 0 && newClockConfig.containsKey("persist") && newClockConfig["persist"] == true) {
+            if(newClockConfig.containsKey("twelvehours") && newClockConfig["twelvehours"] != _twelveHours){
+                _twelveHours = newClockConfig["twelvehours"];
+                _clockConfig["twelvehours"] = _twelveHours;
+                changes++;
+            }
+
+            _applyClockConfig();
+            serializeJson(newClockConfig, response);
+
+        } else if(request->method() == HTTP_PUT && json != NULL) {
+            JsonDocument oldClockConfig;
+            JsonDocument responseJson;
+            configFile = LittleFS.open("/clockconfig.json", "r");
+            deserializeJson(oldClockConfig, configFile);
+
+            if(oldClockConfig["brightness"] != _clockConfig["brightness"]
+                || oldClockConfig["blink"] != _clockConfig["blink"]
+                || oldClockConfig["alarmtime"] != _clockConfig["alarmtime"]
+                || oldClockConfig["alarmactive"] != _clockConfig["alarmactive"]
+                || oldClockConfig["twelvehours"] != _clockConfig["twelvehours"]) {
                 if(_debug) Serial.println("Writing new clockconfig data");
 
                 configFile = LittleFS.open("/clockconfig.json", "w");
                 serializeJson(_clockConfig, configFile);
                 configFile.close();
+                responseJson["persist"] = true;
+            } else {
+                responseJson["persist"] = false;
             }
 
-            _applyClockConfig();
-            serializeJson(newClockConfig, response);
+            serializeJson(responseJson, response);
 
         } else if(request->method() == HTTP_GET) {
             serializeJson(_clockConfig, response);
@@ -364,5 +390,6 @@ void ESPClock::_applyClockConfig() {
     _display.setBrightness(_brightness);
     _blink = _clockConfig["blink"];
     _alarmTime = _clockConfig["alarmtime"];
-    _alarmActive = _clockConfig["alarmactive"];   
+    _alarmActive = _clockConfig["alarmactive"];
+    _twelveHours = _clockConfig["twelvehours"];
 }

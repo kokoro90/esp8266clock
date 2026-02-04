@@ -30,6 +30,7 @@ class ESPClock {
         bool _alarmActive = false;
         bool _alarmOn = false;
         int _button_presses = 0;
+        bool _twelveHours = false;
 
         void _setEndPoints();
         char *_getAlarmTimeStr();
