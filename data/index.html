@@ -28,6 +28,11 @@
     </div>
     <hr>
     <button id="saveconfig" onclick="setData();">Save Configuration</button><br />
+    <hr>
+    <button id="alarmon" onclick="alarmOn();">Turn on alarm</button><br />
+    <button id="alarmoff" onclick="alarmOff();">Turn off alarm</button><br />
+    Alarm is <span id="alarmstatus"></span>
+
 </body>
 <script>
 
@@ -36,6 +41,7 @@
     alarmTime = document.getElementById("alarmTime");
     alarmActive = document.getElementById("alarmActive");
     twelveHours = document.getElementById("twelveHours");
+    alarmstatus = document.getElementById("alarmstatus");
 
     window.onload = function () {
         getData();
@@ -165,6 +171,41 @@
         } catch (error) {
             console.error(error.message);
         }
+    }
+
+    async function alarmOn() {
+        try {
+            const response = await fetch("/alarm/on", {
+                method: "GET",
+            });
+
+            const result = await response.json();
+            showStatus(result.alarmon);
+
+        } catch (error) {
+            console.error(error.message);
+        }
+    }
+
+    async function alarmOff() {
+        try {
+            const response = await fetch("/alarm/off", {
+                method: "GET",
+            });
+
+            const result = await response.json();
+            showStatus(result.alarmon);
+
+        } catch (error) {
+            console.error(error.message);
+        }
+    }
+
+    async function showStatus(alarmon) {
+        if(alarmon == true)
+            alarmstatus.textContent = "On";
+        else
+            alarmstatus.textContent = "Off";
     }
 
 </script>

@@ -39,6 +39,7 @@ ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buz
     _applyClockConfig();
     _display.clear();
     _setEndPoints();
+    _displayState = CLOCK;
 }
 
 void ESPClock::button_tick() {
@@ -47,17 +48,41 @@ void ESPClock::button_tick() {
 
 void ESPClock::_handleAlarm() {
     if(_alarmOn) {
-        if(_buzzer_state == LOW) {
+        if(_buzzer_state == LOW)
             _buzzer_state = HIGH;
-        } else {
+        else
             _buzzer_state = LOW;
-        }
 
         digitalWrite(_buzzer_pin, _buzzer_state);
+    } else {
+        if(_buzzer_state == HIGH)
+            digitalWrite(_buzzer_pin, LOW);
     }
 }
 
-void ESPClock::displayTime() {
+void ESPClock::doDisplay() {
+    switch(_displayState) {
+        case CLOCK: {
+            _displayTime();
+        } break;
+
+        case ALARMTIME: {
+            _displayAlarmTime();
+        } break;
+
+        case ON: {
+            _displayString("on");
+        } break;
+
+        case OFF: {
+            _displayString("off");
+        } break;
+    }
+
+    _handleAlarm();
+}
+
+void ESPClock::_displayTime() {
     uint32_t current_time = now();
 
     uint32_t time_to_check = current_time - _esp.getUpdateInterval() / 1000;
@@ -82,6 +107,8 @@ void ESPClock::displayTime() {
                 if(_debug) Serial.println("Turning on alarm");
                 _alarmOn = true;
                 _buzzer_state = HIGH;
+                _displayState = ON;
+                _displayStartTime = millis();
             }
         } else if(_lastUpdated < time_to_check || _lastUpdated == 0) {
             uint32_t ntp_time = _esp.getEpochTime();
@@ -116,36 +143,70 @@ void ESPClock::displayTime() {
         _showColon = 128;
     }
 
-    _handleAlarm();
     _previousTime = current_time;
 }
 
-void ESPClock::_handleClick() {
+void ESPClock::_displayAlarmTime() {
+    uint32_t now = millis();
 
+    if(now < _displayStartTime + _displayDuration) {
+        int hours = _alarmTime / 100;
+        int minutes = _alarmTime % 100;
+
+        if(_twelveHours)
+            hours = hours > 12 ? hours - 12 : hours;
+
+        uint8_t clock_data[4];
+        clock_data[0] = hours >= 10 ? _display.encodeDigit(hours / 10) : 0;
+        clock_data[1] = _display.encodeDigit(hours % 10) | 128;
+        clock_data[2] = _display.encodeDigit(minutes / 10);
+        clock_data[3] = _display.encodeDigit(minutes % 10);
+
+        if(_debug) Serial.println("Displaying alarm time");
+
+        _display.setSegments(clock_data);
+
+    } else
+        _displayState = CLOCK;
+}
+
+void ESPClock::_displayString(String str) {
+    uint32_t now = millis();
+
+    if(now < _displayStartTime + _displayDuration) {
+        uint8_t data[4] = { 0 };
+
+        if(str == "on") {
+            if(_debug) Serial.println("Displaying On");
+
+            data[0] = _display.encodeDigit(0);
+            data[1] = SEG_C | SEG_E | SEG_G;
+        } else if(str == "off") {
+            if(_debug) Serial.println("Displaying Off");
+
+            data[0] = _display.encodeDigit(0);
+            data[1] = SEG_A | SEG_E | SEG_F | SEG_G;
+            data[2] = data[1];
+        }
+
+        _display.setSegments(data);
+    } else
+        _displayState = CLOCK;
+}
+
+void ESPClock::_handleClick() {
     if(_debug) Serial.println("Button clicked");
     if(_alarmOn) {
         if(_debug) Serial.println("Turning off alarm");
         _alarmOn = false;
-        _buzzer_state = LOW;
-        _button_presses++;
-        digitalWrite(_buzzer_pin, _buzzer_state);
-    } else {
-        _buzzer_state = !_buzzer_state;
-        digitalWrite(_buzzer_pin, _buzzer_state);
+        _displayState = OFF;
+        _displayStartTime = millis();
     }
 }
 
 void ESPClock::_handleLongPress() {
-    int hours = _alarmTime / 100;
-    int minutes = _alarmTime % 100;
-    uint8_t clock_data[4];
-    clock_data[0] = hours >= 10 ? _display.encodeDigit(hours / 10) : 0;
-    clock_data[1] = _display.encodeDigit(hours % 10) | 128;
-    clock_data[2] = _display.encodeDigit(minutes / 10);
-    clock_data[3] = _display.encodeDigit(minutes % 10);
-
-    _display.setSegments(clock_data);
-    delay(3000);
+    _displayState = ALARMTIME;
+    _displayStartTime = millis();
 }
 
 void ESPClock::_setEndPoints() {
@@ -161,129 +222,49 @@ void ESPClock::_setEndPoints() {
             request->send(LittleFS, "/index.html", "text/html");
     });
 
-    _esp.server->on("/brightness", HTTP_POST, [&](AsyncWebServerRequest *request) {
-    });
-
-    _esp.server->on("/brightness", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        JsonDocument doc;
-
-        if (request->hasParam("level")) {
-            int newBrightness = request->getParam("level")->value().toInt();
-            File file = LittleFS.open("/brightness", "r");
-
-            if(file != -1) {
-                deserializeJson(doc, file);
-                doc["level"] = newBrightness;
-                
-                if(_brightness != newBrightness) {
-                    file = LittleFS.open("/brightness", "w");
-                    serializeJson(doc, file);
-                }
-            } else {
-                file = LittleFS.open("/brightness", "w");
-
-                if(file != -1) {
-                    doc["level"] = newBrightness;
-                    serializeJson(doc, file);
-                }
-            }
-
-
-            _display.setBrightness(newBrightness);
-            _brightness = newBrightness;
-        } else {
-            doc["level"] = _brightness;
-        }
-
+    _esp.server->on("/alarm/*", HTTP_GET, [&](AsyncWebServerRequest *request) {
+        JsonDocument status;
+        String command = request->url();
         String response;
-        serializeJson(doc, response);
+
+        if(command.endsWith("on")) {
+            if(!_alarmOn) {
+                _alarmOn = true;
+                _displayState = ON;
+                _displayStartTime = millis();
+            } else
+
+                status["error"] = "Alarm is already on";
+
+            } else if(command.endsWith("off")) {
+                if(_alarmOn) {
+                    _alarmOn = false;
+                    _displayState = OFF;
+                    _displayStartTime = millis();
+                } else
+
+                status["error"] = "Alarm is already off";
+
+        } else if(command.endsWith("status"))
+            ;
+        else if(!command.endsWith("status"))
+            status["error"] = "No valid command found. Must be on, off or status. Sending status.";
+
+        status["alarmon"] = _alarmOn;
+        serializeJson(status, response);
         request->send(200, "text/json", response);
     });
 
-    _esp.server->on("/blink/on", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        _blink = true;
-        request->send(200, "text/pain", "Turning blinking colons on");
-    });
-
-    _esp.server->on("/blink/off", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        _blink = false;
-        request->send(200, "text/pain", "Turning blinking colons off");
-    });
-
-    _esp.server->on("/test", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        request->send(200, "text/plain", "Test response from ESPClock");
-    });
-
-    _esp.server->on("/alarm", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        if(request->hasParam("time")) {
-            uint16_t alarmTime = request->getParam("time")->value().toInt();
-            _alarmTime = alarmTime <= 2359 ? alarmTime : 600;
-        }
-
-        if(request->hasParam("active")) {
-            if(request->getParam("active")->value().equals("true"))
-                _alarmActive = true;
-            else
-                _alarmActive = false;
-        }
-
-        char response[22] = "Set alarm time: ";
-        char alarmTimeStr[6];
-        itoa(_alarmTime, alarmTimeStr, 10);
-
-        strcat(response, alarmTimeStr);
-
-        request->send(200, "text/plain", response);
-    });
-
-    _esp.server->on("/alarmoff", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        _alarmOn = false;
-        _buzzer_state = LOW;
-        digitalWrite(_buzzer_pin, _buzzer_state);
-
-        request->send(200, "text/plain", "turned off alarm");
-    });
-
-    _esp.server->on("/isactive", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        if(_alarmActive)
-            request->send(200, "text/plain", "Alarm is active\n");
-        else
-            request->send(200, "text/plain", "Alarm is not active\n");
-    });
-
-    _esp.server->on("/alarmtime", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        char alarmTimeStr[6];
-        itoa(_alarmTime, alarmTimeStr, 10);
-        request->send(200, "text/plain", alarmTimeStr);
-    });
-
-    _esp.server->on("/alarmstatus", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        if(_alarmOn)
-            request->send(200, "text/plain", "Alarm is on\n");
-        else
-            request->send(200, "text/plain", "Alarm is off\n");
-    });
-
-    _esp.server->on("/buttonpresses", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        char numpresses[6];
-        itoa(_button_presses, numpresses, 10);
-        request->send(200, "text/plain", numpresses);
-    });
-
     _esp.server->on("/currenttime", HTTP_GET, [&](AsyncWebServerRequest *request) {
+        JsonDocument jsonResponse;
+        String response;
         uint32_t current_time = now();
         int hours = (current_time % 86400L) / 3600;
         int minutes = (current_time % 3600) / 60;
-        char timeStr[7];
-        timeStr[0] = hours / 10 + 48;
-        timeStr[1] = hours % 10 + 48;
-        timeStr[2] = ':';
-        timeStr[3] = minutes / 10 + 48;
-        timeStr[4] = minutes % 10 + 48;
-        timeStr[5] = '\n';
-        timeStr[6] = '\0';
-
-        request->send(200, "text/plain", timeStr);
+        uint16_t timenow = hours * 100 + minutes;
+        jsonResponse["currenttime"] = timenow;
+        serializeJson(jsonResponse, response);
+        request->send(200, "text/json", response);
     });
 
     AsyncCallbackJsonWebHandler* handler = new AsyncCallbackJsonWebHandler("/clockconfig", [this](AsyncWebServerRequest *request, JsonVariant &json) {
@@ -298,31 +279,31 @@ void ESPClock::_setEndPoints() {
             newClockConfig = json.as<JsonObject>();
             int changes = 0;
 
-            if(newClockConfig.containsKey("brightness") &&  newClockConfig["brightness"] != _brightness){
+            if(newClockConfig["brightness"].is<int>() &&  newClockConfig["brightness"] != _brightness){
                 _brightness = newClockConfig["brightness"];
                 _clockConfig["brightness"] = _brightness;
                 changes++;
             }
 
-            if(newClockConfig.containsKey("blink") && newClockConfig["blink"] != _blink){
+            if(newClockConfig["blink"].is<bool>() && newClockConfig["blink"] != _blink){
                 _blink = newClockConfig["blink"];
                 _clockConfig["blink"] = _blink;
                 changes++;
             }
 
-            if(newClockConfig.containsKey("alarmtime") && newClockConfig["alarmtime"] != _alarmTime){
+            if(newClockConfig["alarmtime"].is<uint16_t>() && newClockConfig["alarmtime"] != _alarmTime){
                 _alarmTime = newClockConfig["alarmtime"];
                 _clockConfig["alarmtime"] = _alarmTime;
                 changes++;
             }
 
-            if(newClockConfig.containsKey("alarmactive") && newClockConfig["alarmactive"] != _alarmActive){
+            if(newClockConfig["alarmactive"].is<bool>() && newClockConfig["alarmactive"] != _alarmActive){
                 _alarmActive = newClockConfig["alarmactive"];
                 _clockConfig["alarmactive"] = _alarmActive;
                 changes++;
             }
 
-            if(newClockConfig.containsKey("twelvehours") && newClockConfig["twelvehours"] != _twelveHours){
+            if(newClockConfig["twelvehours"].is<bool>() && newClockConfig["twelvehours"] != _twelveHours){
                 _twelveHours = newClockConfig["twelvehours"];
                 _clockConfig["twelvehours"] = _twelveHours;
                 changes++;
@@ -367,22 +348,6 @@ void ESPClock::_setEndPoints() {
     });
 
     _esp.server->addHandler(handler);
-}
-
-char *ESPClock::_getAlarmTimeStr() {
-        char alarmTimeStr[6];
-        int minute = _alarmTime % 60;
-        char minuteStr[2];
-        itoa(minute, minuteStr, 2);
-        int hour = _alarmTime / 100;
-        char hourStr[2];
-        itoa(hour, hourStr, 2);
-        strcat(alarmTimeStr, hourStr);
-        strcat(alarmTimeStr, ":");
-        strcat(alarmTimeStr, minuteStr);
-        alarmTimeStr[5] = '\0';
-
-        return alarmTimeStr;
 }
 
 void ESPClock::_applyClockConfig() {

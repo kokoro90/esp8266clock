@@ -19,6 +19,6 @@ void loop() {
 
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
-    espclock->displayTime();
+    espclock->doDisplay();
   }
 }

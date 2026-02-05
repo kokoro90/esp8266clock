@@ -10,13 +10,17 @@ class ESPClock {
     public:
         ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buzzer_pin);
         void button_tick();
-        void displayTime();
+        void doDisplay();
 
     private:
         BasicESP8266 _esp;
         OneButton _button;
         TM1637Display _display;
         JsonDocument _clockConfig;
+        enum _state { CLOCK, ALARMTIME, ON, OFF };
+        enum _state _displayState;
+        uint16_t _displayDuration = 3000;
+        uint32_t _displayStartTime = 0;
         int _brightness = 3;
         int _buzzer_pin;
         int _count;
@@ -29,11 +33,12 @@ class ESPClock {
         uint16_t _alarmTime;
         bool _alarmActive = false;
         bool _alarmOn = false;
-        int _button_presses = 0;
         bool _twelveHours = false;
 
+        void _displayTime();
+        void _displayAlarmTime();
+        void _displayString(String str);
         void _setEndPoints();
-        char *_getAlarmTimeStr();
         void _handleAlarm();
         void _handleClick();
         void _handleLongPress();
