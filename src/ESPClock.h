@@ -10,6 +10,7 @@ class ESPClock {
     public:
         ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buzzer_pin);
         void button_tick();
+        void loop();
         void doDisplay();
 
     private:
@@ -17,7 +18,7 @@ class ESPClock {
         OneButton _button;
         TM1637Display _display;
         JsonDocument _clockConfig;
-        enum _state { CLOCK, ALARMTIME, ON, OFF };
+        enum _state { CLOCK, ALARMTIME, ON, OFF, TIMER };
         enum _state _displayState;
         uint16_t _displayDuration = 3000;
         uint32_t _displayStartTime = 0;

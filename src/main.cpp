@@ -13,6 +13,7 @@ void setup() {
 }
 
 void loop() {
+  espclock->loop();
   espclock->button_tick();
 
   unsigned long currentMillis = millis();

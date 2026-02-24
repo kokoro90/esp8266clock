@@ -46,6 +46,10 @@ void ESPClock::button_tick() {
     _button.tick();
 }
 
+void ESPClock::loop() {
+    _esp.loop();
+}
+
 void ESPClock::_handleAlarm() {
     if(_alarmOn) {
         if(_buzzer_state == LOW)

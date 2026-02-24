@@ -637,8 +637,10 @@ void BasicESP8266::loop()
     if (_sigOff==0) {_sigOn=millis()+5000;_sigOff=_sigOn+500;}
   }
 
-  if (_resetCount>0 && millis()>_RESETTIME) _eePutULong(_IND_RESETCOUNT, (long)0);
-
+  if (_resetCount>0 && millis()>_RESETTIME) {
+    _resetCount = (uint32_t) 0;
+    _eePutULong(_IND_RESETCOUNT, (long)0);
+  }
 
   if (_sigOn>0 && millis()>_sigOn)
   {
