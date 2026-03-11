@@ -4,7 +4,7 @@
 #include "BasicESP8266.h"
 #include <OneButton.h>
 #include <TM1637Display.h>
-#include <ArduinoJson.h>
+#include <NTPClient.h>
 
 class ESPClock {
     public:
@@ -17,25 +17,37 @@ class ESPClock {
         BasicESP8266 _esp;
         OneButton _button;
         TM1637Display _display;
-        JsonDocument _clockConfig;
+        const char *_configFileName = "/clockconfig.json";
+        struct ClockConfig {
+            bool blink = false;
+            uint8_t brightness = 3;
+            uint16_t alarmTime = 600;
+            bool alarmActive = false;
+            bool twelveHours = false;
+            int tzOffset = 21600;
+            bool dst = false;
+        };
+        ClockConfig _clockConfig;
         enum _state { CLOCK, ALARMTIME, ON, OFF, TIMER };
         enum _state _displayState;
         uint16_t _displayDuration = 3000;
         uint32_t _displayStartTime = 0;
-        int _brightness = 3;
         int _buzzer_pin;
         int _count;
         int _buzzer_state;
         uint32_t _lastUpdated = 0;
         uint32_t _previousTime = 0;
         int _showColon = 128;
-        bool _blink = false;
         bool _debug;
-        uint16_t _alarmTime;
-        bool _alarmActive = false;
         bool _alarmOn = false;
-        bool _twelveHours = false;
+        WiFiUDP _ntpUDP;
+        NTPClient *_timeClient;
+        unsigned long _updateInterval=1800000;
 
+        void _applyClockConfig();
+        ClockConfig _createClockConfigFromJson(String json);
+        void _saveClockConfig();
+        String _getClockConfigJson(bool persist, bool showPersist);
         void _displayTime();
         void _displayAlarmTime();
         void _displayString(String str);
@@ -43,7 +55,8 @@ class ESPClock {
         void _handleAlarm();
         void _handleClick();
         void _handleLongPress();
-        void _applyClockConfig();
+        void _setupClock();
+        uint32_t _getEpochTime();
 };
 
 

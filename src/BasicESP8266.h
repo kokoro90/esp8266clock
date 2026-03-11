@@ -44,7 +44,7 @@
 #define ESIZE 16
 #define MAXARGS 30
 #define SHOWWIFIPWD false
-#define ntp true
+#define ntp false
 
 class BasicESP8266
 {

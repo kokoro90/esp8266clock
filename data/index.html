@@ -3,6 +3,15 @@
 
 <body style="background-color: black; color: white;">
     <h1>Welcome to ESP8266 Clock</h1>
+    <div id="tzoffset">
+        <label for="offsetHours">Timezone offset from UTC (hours portion)</label>
+        <input type="number" id="offsetHours" min="-12" max="14" value="0"><br />
+        <label for="offsetHours">Timezone offset from UTC (minutes portion)</label>
+        <input type="number" id="offsetMinutes" min="0" max="45" step="15" value="0"><br />
+        <button id="settzoffset" onclick="setTZOffset();">Set time zone offset</button><br />
+
+
+    </div>
     <div id="brightness-control">
         Brightness<br />
         <span id="dec" onclick="changeBrightness(-1);" style="background-color: red; color: white;">&lt;</span><span

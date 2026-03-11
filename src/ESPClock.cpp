@@ -1,5 +1,6 @@
 #include <ESPClock.h>
 #include <TimeLib.h>
+#include "jsonlib.h"
 
 ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buzzer_pin)
     : _esp(debug, 100, true, false, false), _button(button_pin, true, false), _display(clk_pin, dio_pin) {
@@ -21,23 +22,16 @@ ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buz
 
     File configFile;
 
-    if(LittleFS.exists("/clockconfig.json")) {
-        configFile = LittleFS.open("/clockconfig.json", "r");
-        deserializeJson(_clockConfig, configFile);
+    if(LittleFS.exists(_configFileName)) {
+        configFile = LittleFS.open(_configFileName, "r");
+        String configContent = configFile.readString();
+        _createClockConfigFromJson(configContent);
     } else {
-        _clockConfig["brightness"] = _brightness;
-        _clockConfig["blink"] = _blink;
-        _clockConfig["alarmtime"] = _alarmTime;
-        _clockConfig["alarmactive"] = _alarmActive;
-        _clockConfig["twelvehours"] = _twelveHours;
-
-        configFile = LittleFS.open("/clockconfig.json", "w");
-        serializeJson(_clockConfig, configFile);
-        configFile.close();
+        _saveClockConfig();
     }
 
-    _applyClockConfig();
     _display.clear();
+    _setupClock();
     _setEndPoints();
     _displayState = CLOCK;
 }
@@ -89,7 +83,7 @@ void ESPClock::doDisplay() {
 void ESPClock::_displayTime() {
     uint32_t current_time = now();
 
-    uint32_t time_to_check = current_time - _esp.getUpdateInterval() / 1000;
+    uint32_t time_to_check = current_time - _updateInterval / 1000;
     int hours = (current_time % 86400L) / 3600;
     int minutes = (current_time % 3600) / 60;
 
@@ -98,16 +92,16 @@ void ESPClock::_displayTime() {
             if(_debug) {
                 Serial.println("At the minute mark");
                 Serial.print("_alarmTime / 100=");
-                Serial.println(_alarmTime / 100);
+                Serial.println(_clockConfig.alarmTime / 100);
                 Serial.print("_alarmTime % 100=");
-                Serial.println(_alarmTime % 100);
+                Serial.println(_clockConfig.alarmTime % 100);
                 Serial.print("Hours:");
                 Serial.println(hours);
                 Serial.print("Minutes:");
                 Serial.println(minutes);
             }
 
-            if(_alarmActive && !_alarmOn && _alarmTime / 100 == hours && _alarmTime % 100 == minutes) {
+            if(_clockConfig.alarmActive && !_alarmOn && _clockConfig.alarmTime / 100 == hours && _clockConfig.alarmTime % 100 == minutes) {
                 if(_debug) Serial.println("Turning on alarm");
                 _alarmOn = true;
                 _buzzer_state = HIGH;
@@ -115,7 +109,7 @@ void ESPClock::_displayTime() {
                 _displayStartTime = millis();
             }
         } else if(_lastUpdated < time_to_check || _lastUpdated == 0) {
-            uint32_t ntp_time = _esp.getEpochTime();
+            uint32_t ntp_time = _timeClient->getEpochTime();
             setTime(ntp_time);
             _lastUpdated = current_time;
 
@@ -131,7 +125,7 @@ void ESPClock::_displayTime() {
 
     uint8_t clock_data[4];
 
-    if(_twelveHours)
+    if(_clockConfig.twelveHours)
         hours = hours > 12 ? hours - 12 : hours;
 
     clock_data[0] = hours >= 10 ? _display.encodeDigit(hours / 10) : 0;
@@ -141,7 +135,7 @@ void ESPClock::_displayTime() {
 
     _display.setSegments(clock_data);
 
-    if(_blink) {
+    if(_clockConfig.blink) {
         _showColon = _showColon == 128 ? 0 : 128;
     } else {
         _showColon = 128;
@@ -154,10 +148,10 @@ void ESPClock::_displayAlarmTime() {
     uint32_t now = millis();
 
     if(now < _displayStartTime + _displayDuration) {
-        int hours = _alarmTime / 100;
-        int minutes = _alarmTime % 100;
+        int hours = _clockConfig.alarmTime / 100;
+        int minutes = _clockConfig.alarmTime % 100;
 
-        if(_twelveHours)
+        if(_clockConfig.twelveHours)
             hours = hours > 12 ? hours - 12 : hours;
 
         uint8_t clock_data[4];
@@ -227,7 +221,7 @@ void ESPClock::_setEndPoints() {
     });
 
     _esp.server->on("/alarm/*", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        JsonDocument status;
+        String status;
         String command = request->url();
         String response;
 
@@ -238,7 +232,7 @@ void ESPClock::_setEndPoints() {
                 _displayStartTime = millis();
             } else
 
-                status["error"] = "Alarm is already on";
+                status = "{\"error\":\"Alarm is already on\"";
 
             } else if(command.endsWith("off")) {
                 if(_alarmOn) {
@@ -247,118 +241,108 @@ void ESPClock::_setEndPoints() {
                     _displayStartTime = millis();
                 } else
 
-                status["error"] = "Alarm is already off";
+                status = "{\"error\":\"Alarm is already off\"";
+
 
         } else if(command.endsWith("status"))
             ;
         else if(!command.endsWith("status"))
-            status["error"] = "No valid command found. Must be on, off or status. Sending status.";
+            status = "{\"error\":\"No valid command found. Must be on, off or status. Sending status.\"";
 
-        status["alarmon"] = _alarmOn;
-        serializeJson(status, response);
-        request->send(200, "text/json", response);
+        status += ",\"alarmn\":" + String(_alarmOn) + "}";
+        request->send(200, "application/json", status);
     });
 
     _esp.server->on("/currenttime", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        JsonDocument jsonResponse;
         String response;
         uint32_t current_time = now();
         int hours = (current_time % 86400L) / 3600;
         int minutes = (current_time % 3600) / 60;
         uint16_t timenow = hours * 100 + minutes;
-        jsonResponse["currenttime"] = timenow;
-        serializeJson(jsonResponse, response);
-        request->send(200, "text/json", response);
+        response = "{\"currenttime\":" + String(timenow) + "}";
+        request->send(200, "application/json", response);
     });
 
-    AsyncCallbackJsonWebHandler* handler = new AsyncCallbackJsonWebHandler("/clockconfig", [this](AsyncWebServerRequest *request, JsonVariant &json) {
-        if(_debug) Serial.println("Getting clockconfig request");
-        JsonObject newClockConfig;
-        String response = "";
-        File configFile;
+    _esp.server->on("clockconfig", HTTP_ANY, [&](AsyncWebServerRequest *request) {}, 
+                    NULL, 
+                    [this](AsyncWebServerRequest * request, uint8_t *data, size_t len, size_t index, size_t total) {
+        String response;
+        String body;
+        ClockConfig incomingConfig;
 
-        if(request->method() == HTTP_POST && json != NULL) {
-            if(_debug) Serial.println("Reading in new clockconfig data");
+        if(len > 0) {
+            body = String((const char *) data);
+            incomingConfig = _createClockConfigFromJson(body);
+        }
 
-            newClockConfig = json.as<JsonObject>();
-            int changes = 0;
-
-            if(newClockConfig["brightness"].is<int>() &&  newClockConfig["brightness"] != _brightness){
-                _brightness = newClockConfig["brightness"];
-                _clockConfig["brightness"] = _brightness;
-                changes++;
-            }
-
-            if(newClockConfig["blink"].is<bool>() && newClockConfig["blink"] != _blink){
-                _blink = newClockConfig["blink"];
-                _clockConfig["blink"] = _blink;
-                changes++;
-            }
-
-            if(newClockConfig["alarmtime"].is<uint16_t>() && newClockConfig["alarmtime"] != _alarmTime){
-                _alarmTime = newClockConfig["alarmtime"];
-                _clockConfig["alarmtime"] = _alarmTime;
-                changes++;
-            }
-
-            if(newClockConfig["alarmactive"].is<bool>() && newClockConfig["alarmactive"] != _alarmActive){
-                _alarmActive = newClockConfig["alarmactive"];
-                _clockConfig["alarmactive"] = _alarmActive;
-                changes++;
-            }
-
-            if(newClockConfig["twelvehours"].is<bool>() && newClockConfig["twelvehours"] != _twelveHours){
-                _twelveHours = newClockConfig["twelvehours"];
-                _clockConfig["twelvehours"] = _twelveHours;
-                changes++;
-            }
-
+        if(request->method() == HTTP_GET) {
+            response = _getClockConfigJson(false, false);
+        } else if(request->method() == HTTP_POST) {
+            _clockConfig = incomingConfig;
             _applyClockConfig();
-            serializeJson(newClockConfig, response);
-
-        } else if(request->method() == HTTP_PUT && json != NULL) {
-            JsonDocument oldClockConfig;
-            JsonDocument responseJson;
-            configFile = LittleFS.open("/clockconfig.json", "r");
-            deserializeJson(oldClockConfig, configFile);
-
-            if(oldClockConfig["brightness"] != _clockConfig["brightness"]
-                || oldClockConfig["blink"] != _clockConfig["blink"]
-                || oldClockConfig["alarmtime"] != _clockConfig["alarmtime"]
-                || oldClockConfig["alarmactive"] != _clockConfig["alarmactive"]
-                || oldClockConfig["twelvehours"] != _clockConfig["twelvehours"]) {
-                if(_debug) Serial.println("Writing new clockconfig data");
-
-                configFile = LittleFS.open("/clockconfig.json", "w");
-                serializeJson(_clockConfig, configFile);
-                configFile.close();
-                responseJson["persist"] = true;
+            response = _getClockConfigJson(false, false);
+        } else if(request->method() == HTTP_PUT) {
+            if(incomingConfig.alarmActive != _clockConfig.alarmActive
+                    || incomingConfig.alarmTime != _clockConfig.alarmTime
+                    || incomingConfig.blink != _clockConfig.blink
+                    || incomingConfig.brightness != _clockConfig.brightness
+                    || incomingConfig.dst != _clockConfig.dst
+                    || incomingConfig.twelveHours != _clockConfig.twelveHours
+                    || incomingConfig.tzOffset != _clockConfig.tzOffset) {
+                _clockConfig = incomingConfig;
+                _applyClockConfig();
+                _saveClockConfig();
+                response = _getClockConfigJson(true, true);
             } else {
-                responseJson["persist"] = false;
+                response = _getClockConfigJson(false, true);
             }
-
-            serializeJson(responseJson, response);
-
-        } else if(request->method() == HTTP_GET) {
-            serializeJson(_clockConfig, response);
-
-            if(_debug) {
-                Serial.println("Sending current clockconfig data:");
-                Serial.println(response);
-            }
+        } else {
+            response = "{\"error\":\"Invalid Request\"}";
         }
 
         request->send(200, "application/json", response);
     });
-
-    _esp.server->addHandler(handler);
 }
 
 void ESPClock::_applyClockConfig() {
-    _brightness = _clockConfig["brightness"];
-    _display.setBrightness(_brightness);
-    _blink = _clockConfig["blink"];
-    _alarmTime = _clockConfig["alarmtime"];
-    _alarmActive = _clockConfig["alarmactive"];
-    _twelveHours = _clockConfig["twelvehours"];
+    _display.setBrightness(_clockConfig.brightness);
+    _setupClock();
+}
+
+ESPClock::ClockConfig ESPClock::_createClockConfigFromJson(String json) {
+    ClockConfig configFromJson;
+    configFromJson.alarmActive = jsonExtract(json, "alarmactive") == "true";
+    configFromJson.alarmTime = jsonExtract(json, "alarmtime").toInt();
+    configFromJson.blink = jsonExtract(json, "blink") == "true";
+    configFromJson.brightness = jsonExtract(json, "brightness").toInt();
+    configFromJson.dst = jsonExtract(json, "dst") == "true";
+    configFromJson.twelveHours = jsonExtract(json, "twelvehours") == "true";
+    configFromJson.tzOffset = jsonExtract(json, "tzoffset").toInt();
+
+    return configFromJson;
+}
+
+void ESPClock::_saveClockConfig() {
+    File configFile = LittleFS.open("/clockconfig.json", "w");
+    configFile.print(_getClockConfigJson(false, false).c_str());
+    configFile.close();
+}
+
+String ESPClock::_getClockConfigJson(bool persist, bool showPersist) {
+    String result =  "{\"alarmactive\":" + String(_clockConfig.alarmActive) + ",\"alarmtime\":" + String(_clockConfig.alarmTime)
+        + ",\"blink\":" + String(_clockConfig.blink) + ",\"brigtness\":" + String(_clockConfig.brightness) + ",\"dst\":" + String(_clockConfig.dst)
+        + ",\"tzoffset\":" + String(_clockConfig.tzOffset);
+    
+    if(showPersist) {
+        result += ",\"persist\":" + String(persist);
+    }
+
+    result += "}";
+
+    return result;
+}
+
+void ESPClock::_setupClock() {
+    int tzOffset = _clockConfig.tzOffset - _clockConfig.dst ? 3600 : 0;
+    _timeClient = new NTPClient(_ntpUDP, "pool.ntp.org", tzOffset, _updateInterval);
 }
