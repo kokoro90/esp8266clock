@@ -31,7 +31,6 @@
 #include <ArduinoOTA.h>
 #include "LittleFS.h"
 #include <WiFiUdp.h>
-#include <NTPClient.h>
 
 
 
@@ -88,12 +87,12 @@ class BasicESP8266
 
     WiFiClient espClient;
     AsyncWebServer *server;
-#ifdef ntp
-    WiFiUDP ntpUDP;
-    NTPClient *timeClient;
-    uint32_t getEpochTime();
+//#ifdef ntp
+//    WiFiUDP ntpUDP;
+//    NTPClient *timeClient;
+//    uint32_t getEpochTime();
 
-#endif
+//#endif
 
     unsigned long getUpdateInterval();
     bool apmode=true;

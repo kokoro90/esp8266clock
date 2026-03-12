@@ -1,5 +1,5 @@
 #include <ESPClock.h>
-#include <TimeLib.h>
+#include <time.h>
 
 ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buzzer_pin)
     : _esp(debug, 100, true, false, false), _button(button_pin, true, false), _display(clk_pin, dio_pin) {
@@ -25,12 +25,14 @@ ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buz
     if(LittleFS.exists(_configFileName)) {
         configFile = LittleFS.open(_configFileName, "r");
         deserializeJson(clockConfigJson, configFile);
+        configFile.close();
     } else {
         clockConfigJson["brightness"] = _clockConfig.brightness;
         clockConfigJson["blink"] = _clockConfig.blink;
         clockConfigJson["alarmtime"] = _clockConfig.alarmTime;
         clockConfigJson["alarmactive"] = _clockConfig.alarmActive;
         clockConfigJson["twelvehours"] = _clockConfig.twelveHours;
+        clockConfigJson["tzstring"] = _clockConfig.tzString;
         clockConfigJson["tzoffset"] = _clockConfig.tzOffset;
         clockConfigJson["dst"] = _clockConfig.dst;
 
@@ -42,6 +44,7 @@ ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buz
     _applyClockConfigFromJson(clockConfigJson);
     _display.clear();
     _setEndPoints();
+    _setupClock();
     _displayState = CLOCK;
 }
 
@@ -90,52 +93,40 @@ void ESPClock::doDisplay() {
 }
 
 void ESPClock::_displayTime() {
-    uint32_t current_time = now();
-
-    uint32_t time_to_check = current_time - _updateInterval / 1000;
-    int hours = (current_time % 86400L) / 3600;
-    int minutes = (current_time % 3600) / 60;
+    getLocalTime(&timeinfo);
+    uint8_t hours = timeinfo.tm_hour;
+    uint8_t minutes = timeinfo.tm_min;
+    uint32_t current_time = hours * 10000 + minutes * 100 + timeinfo.tm_sec;
 
     if(_previousTime != current_time) {
-        if(current_time % 60 == 0) {
+        if(timeinfo.tm_sec == 0) {
             if(_debug) {
                 Serial.println("At the minute mark");
                 Serial.print("_alarmTime / 100=");
-                Serial.println(_alarmTime / 100);
+                Serial.println(_clockConfig.alarmTime / 100);
                 Serial.print("_alarmTime % 100=");
-                Serial.println(_alarmTime % 100);
+                Serial.println(_clockConfig.alarmTime % 100);
                 Serial.print("Hours:");
                 Serial.println(hours);
                 Serial.print("Minutes:");
                 Serial.println(minutes);
             }
 
-            if(_alarmActive && !_alarmOn && _alarmTime / 100 == hours && _alarmTime % 100 == minutes) {
+            if(_clockConfig.alarmActive && !_alarmOn && _clockConfig.alarmTime / 100 == hours && _clockConfig.alarmTime % 100 == minutes) {
                 if(_debug) Serial.println("Turning on alarm");
                 _alarmOn = true;
                 _buzzer_state = HIGH;
                 _displayState = ON;
                 _displayStartTime = millis();
             }
-        } else if(_lastUpdated < time_to_check || _lastUpdated == 0) {
-            uint32_t ntp_time = _timeClient->getEpochTime();
-            setTime(ntp_time);
-            _lastUpdated = current_time;
-
-            if(_debug) {
-                Serial.print("Retrieved time from NTP server: ");
-                Serial.print((current_time % 86400L) / 3600);
-                Serial.print(":");
-                Serial.print((current_time % 3600) / 60 / 10);
-                Serial.print(((current_time % 3600) / 60) % 10);
-            }
         }
     }
 
     uint8_t clock_data[4];
 
-    if(_twelveHours)
+    if(_clockConfig.twelveHours){
         hours = hours > 12 ? hours - 12 : hours;
+    }
 
     clock_data[0] = hours >= 10 ? _display.encodeDigit(hours / 10) : 0;
     clock_data[1] = _display.encodeDigit(hours % 10) | _showColon;
@@ -144,7 +135,7 @@ void ESPClock::_displayTime() {
 
     _display.setSegments(clock_data);
 
-    if(_blink) {
+    if(_clockConfig.blink) {
         _showColon = _showColon == 128 ? 0 : 128;
     } else {
         _showColon = 128;
@@ -157,10 +148,10 @@ void ESPClock::_displayAlarmTime() {
     uint32_t now = millis();
 
     if(now < _displayStartTime + _displayDuration) {
-        int hours = _alarmTime / 100;
-        int minutes = _alarmTime % 100;
+        int hours = _clockConfig.alarmTime / 100;
+        int minutes = _clockConfig.alarmTime % 100;
 
-        if(_twelveHours)
+        if(_clockConfig.twelveHours)
             hours = hours > 12 ? hours - 12 : hours;
 
         uint8_t clock_data[4];
@@ -265,10 +256,7 @@ void ESPClock::_setEndPoints() {
     _esp.server->on("/currenttime", HTTP_GET, [&](AsyncWebServerRequest *request) {
         JsonDocument jsonResponse;
         String response;
-        uint32_t current_time = now();
-        int hours = (current_time % 86400L) / 3600;
-        int minutes = (current_time % 3600) / 60;
-        uint16_t timenow = hours * 100 + minutes;
+        uint16_t timenow = timeinfo.tm_hour * 100 + timeinfo.tm_min;
         jsonResponse["currenttime"] = timenow;
         serializeJson(jsonResponse, response);
         request->send(200, "text/json", response);
@@ -304,7 +292,7 @@ void ESPClock::_setEndPoints() {
                 _clockConfig.twelveHours = newClockConfig["twelvehours"];
 
             if(newClockConfig["tzoffset"].is<int>() && newClockConfig["tzoffset"] != _clockConfig.tzOffset) {
-                _clockConfig.tzOffset = newClockConfig["tzoffset"];
+                _clockConfig.tzOffset = newClockConfig["tzsoffset"];
                 timeChange = true;
             }
 
@@ -313,15 +301,22 @@ void ESPClock::_setEndPoints() {
                 timeChange = true;
             }
 
+            if(newClockConfig["tzstring"].is<const char*>() && newClockConfig["tzstring"] != _clockConfig.tzString) {
+                _clockConfig.tzString = newClockConfig["tzstring"];
+                timeChange = true;
+                if(_debug)
+                    Serial.printf("Setting up new timezone in clockConfig: %s\n", _clockConfig.tzString);
+            }
+
             if(timeChange)
-                _setupClock();
+                _setTZOffset();
 
             serializeJson(newClockConfig, response);
 
         } else if(request->method() == HTTP_PUT && json != NULL) {
             JsonDocument oldClockConfig;
             JsonDocument responseJson;
-            configFile = LittleFS.open("/clockconfig.json", "r");
+            configFile = LittleFS.open(_configFileName, "r");
             deserializeJson(oldClockConfig, configFile);
 
             if(oldClockConfig["brightness"] != _clockConfig.brightness
@@ -329,11 +324,12 @@ void ESPClock::_setEndPoints() {
                 || oldClockConfig["alarmtime"] != _clockConfig.alarmTime
                 || oldClockConfig["alarmactive"] != _clockConfig.alarmActive
                 || oldClockConfig["twelvehours"] != _clockConfig.twelveHours
+                || oldClockConfig["tzstring"] != _clockConfig.tzString
                 || oldClockConfig["tzoffset"] != _clockConfig.tzOffset
                 || oldClockConfig["dst"] != _clockConfig.dst) {
                 if(_debug) Serial.println("Writing new clockconfig data");
 
-                configFile = LittleFS.open("/clockconfig.json", "w");
+                configFile = LittleFS.open(_configFileName, "w");
                 serializeJson(_createJsonFromClockConfig(), configFile);
                 configFile.close();
                 responseJson["persist"] = true;
@@ -344,7 +340,7 @@ void ESPClock::_setEndPoints() {
             serializeJson(responseJson, response);
 
         } else if(request->method() == HTTP_GET) {
-            serializeJson(_clockConfigJson, response);
+            serializeJson(_createJsonFromClockConfig(), response);
 
             if(_debug) {
                 Serial.println("Sending current clockconfig data:");
@@ -365,6 +361,7 @@ void ESPClock::_applyClockConfigFromJson(JsonDocument clockConfigJson) {
     _clockConfig.alarmTime = clockConfigJson["alarmtime"];
     _clockConfig.alarmActive = clockConfigJson["alarmactive"];
     _clockConfig.twelveHours = clockConfigJson["twelvehours"];
+    _clockConfig.tzString = clockConfigJson["tzstring"];
     _clockConfig.tzOffset = clockConfigJson["tzoffset"];
     _clockConfig.dst = clockConfigJson["dst"];
 }
@@ -376,14 +373,29 @@ JsonDocument ESPClock::_createJsonFromClockConfig() {
     document["brightness"] = _clockConfig.brightness;
     document["alarmactive"] = _clockConfig.alarmActive;
     document["alarmtime"] = _clockConfig.alarmTime;
-    document["twelvehours"] = _clockConfig.twelveHours;
     document["tzoffset"] = _clockConfig.tzOffset;
     document["dst"] = _clockConfig.dst;
+    document["twelvehours"] = _clockConfig.twelveHours;
+    document["tzstring"] = _clockConfig.tzString;
+
+    if(_debug)
+        Serial.printf("Creating json from clockConfig. tzstring=%s\n", _clockConfig.tzString);
 
     return document;
 }
 
 void ESPClock::_setupClock() {
-    int tzOffset = _clockConfig.tzOffset - _clockConfig.dst ? 3600 : 0;
-    _timeClient = new NTPClient(_ntpUDP, "pool.ntp.org", tzOffset, _updateInterval);
+    configTime("CST6CDT,M3.2.0/2:00:00,M11.1.0/2:00:00", "pool.ntp.org");
+    getLocalTime(&timeinfo);
+
+    if(_debug)
+        Serial.printf("Time: %d:%d\n", timeinfo.tm_hour, timeinfo.tm_min);
+}
+
+void ESPClock::_setTZOffset() {
+    setTZ(_clockConfig.tzString);
+    getLocalTime(&timeinfo);
+
+    if(_debug)
+        Serial.printf("Setting timezone to %s\n", _clockConfig.tzString);
 }

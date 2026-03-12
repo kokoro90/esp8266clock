@@ -65,11 +65,11 @@ void BasicESP8266::begin()
   _setConfig();
   _tryWifi();
 
-#ifdef ntp
-  timeClient=new NTPClient(ntpUDP, "pool.ntp.org", _tzoffset, _updateinterval);
-  timeClient->begin();
-  timeClient->update();
-#endif
+//#ifdef ntp
+//  timeClient=new NTPClient(ntpUDP, "pool.ntp.org", _tzoffset, _updateinterval);
+//  timeClient->begin();
+//  timeClient->update();
+//#endif
 
   if (!apmode)
   {
@@ -84,13 +84,13 @@ void BasicESP8266::begin()
 
 }
 
-#ifdef ntp
-uint32_t BasicESP8266::getEpochTime()
-{
-  timeClient->update();
-  return timeClient->getEpochTime();
-}
-#endif
+//#ifdef ntp
+//uint32_t BasicESP8266::getEpochTime()
+//{
+//  timeClient->update();
+//  return timeClient->getEpochTime();
+//}
+//#endif
 
 unsigned long BasicESP8266::getUpdateInterval()
 {
@@ -102,6 +102,7 @@ unsigned long BasicESP8266::getUpdateInterval()
 bool BasicESP8266::setSig(uint32_t onDur, uint32_t offDur, uint8_t sigCount)
 { 
   if (_sigOn>0 || _sigOff>0) return false;
+
   _sigOnDur=onDur;
   _sigOffDur=offDur;
   _sigCount=sigCount;

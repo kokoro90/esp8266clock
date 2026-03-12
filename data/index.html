@@ -27,6 +27,16 @@
         <label for="twelveHours">12H</label><br />
     </div>
     <hr>
+    <div id="timezone-control">
+        <input type="number" id="tzOffset" onclick="setTZOffset();">
+        <label for="tzOffset">Timezone offset in seconds</label><br />
+    </div>
+    <hr>
+    <div id="tzstring-control">
+        <input type="text" id="tzString" onclick="setTZString();">
+        <label for="tzString">POSIX Timezone String</label><br />
+    </div>
+    <hr>
     <button id="saveconfig" onclick="setData();">Save Configuration</button><br />
     <hr>
     <button id="alarmon" onclick="alarmOn();">Turn on alarm</button><br />
@@ -42,6 +52,8 @@
     alarmActive = document.getElementById("alarmActive");
     twelveHours = document.getElementById("twelveHours");
     alarmstatus = document.getElementById("alarmstatus");
+    tzOffset = document.getElementById("tzOffset");
+    tzString = document.getElementById("tzString");
 
     window.onload = function () {
         getData();
@@ -105,6 +117,41 @@
         } catch (error) {
             console.error(error.message);
         }
+    }
+
+    async function setTZString() {
+        try {
+            const response = await fetch("/clockconfig", {
+                method: "POST",
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ tzstring: tzString.value }),
+            });
+
+            const result = await response.json();
+        } catch (error) {
+            console.error(error.message);
+        }
+
+    }
+
+    async function setTZOffset(){
+        try {
+            tzOffsetVal = parseInt(tzOffset.value);
+            const response = await fetch("/clockconfig", {
+                method: "POST",
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ tzoffset: tzOffsetVal }),
+            });
+
+            const result = await response.json();
+        } catch (error) {
+            console.error(error.message);
+        }
+        
     }
 
     async function changeBrightness(direction) {
