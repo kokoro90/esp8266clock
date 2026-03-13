@@ -4,7 +4,6 @@
 #include "BasicESP8266.h"
 #include <OneButton.h>
 #include <TM1637Display.h>
-#include <NTPClient.h>
 
 class ESPClock {
     public:
@@ -28,6 +27,7 @@ class ESPClock {
             bool dst = false;
         };
         ClockConfig _clockConfig;
+        struct tm timeinfo;
         enum _state { CLOCK, ALARMTIME, ON, OFF, TIMER };
         enum _state _displayState;
         uint16_t _displayDuration = 3000;
@@ -40,9 +40,6 @@ class ESPClock {
         int _showColon = 128;
         bool _debug;
         bool _alarmOn = false;
-        WiFiUDP _ntpUDP;
-        NTPClient *_timeClient;
-        unsigned long _updateInterval=1800000;
 
         void _applyClockConfig();
         ClockConfig _createClockConfigFromJson(String json);
@@ -57,6 +54,7 @@ class ESPClock {
         void _handleLongPress();
         void _setupClock();
         uint32_t _getEpochTime();
+        String _getBoolString(bool var);
 };
 
 

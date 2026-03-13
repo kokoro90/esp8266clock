@@ -1,5 +1,5 @@
 #include <ESPClock.h>
-#include <TimeLib.h>
+#include <time.h>
 #include "jsonlib.h"
 
 ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buzzer_pin)
@@ -81,11 +81,10 @@ void ESPClock::doDisplay() {
 }
 
 void ESPClock::_displayTime() {
-    uint32_t current_time = now();
-
-    uint32_t time_to_check = current_time - _updateInterval / 1000;
-    int hours = (current_time % 86400L) / 3600;
-    int minutes = (current_time % 3600) / 60;
+    getLocalTime(&timeinfo);
+    uint8_t hours = timeinfo.tm_hour;
+    uint8_t minutes = timeinfo.tm_min;
+    uint32_t current_time = hours * 10000 + minutes * 100 + timeinfo.tm_sec;
 
     if(_previousTime != current_time) {
         if(current_time % 60 == 0) {
@@ -107,18 +106,6 @@ void ESPClock::_displayTime() {
                 _buzzer_state = HIGH;
                 _displayState = ON;
                 _displayStartTime = millis();
-            }
-        } else if(_lastUpdated < time_to_check || _lastUpdated == 0) {
-            uint32_t ntp_time = _timeClient->getEpochTime();
-            setTime(ntp_time);
-            _lastUpdated = current_time;
-
-            if(_debug) {
-                Serial.print("Retrieved time from NTP server: ");
-                Serial.print((current_time % 86400L) / 3600);
-                Serial.print(":");
-                Serial.print((current_time % 3600) / 60 / 10);
-                Serial.print(((current_time % 3600) / 60) % 10);
             }
         }
     }
@@ -255,20 +242,42 @@ void ESPClock::_setEndPoints() {
 
     _esp.server->on("/currenttime", HTTP_GET, [&](AsyncWebServerRequest *request) {
         String response;
-        uint32_t current_time = now();
-        int hours = (current_time % 86400L) / 3600;
-        int minutes = (current_time % 3600) / 60;
-        uint16_t timenow = hours * 100 + minutes;
+        uint16_t timenow = timeinfo.tm_hour * 100 + timeinfo.tm_min;;
         response = "{\"currenttime\":" + String(timenow) + "}";
         request->send(200, "application/json", response);
     });
 
-    _esp.server->on("clockconfig", HTTP_ANY, [&](AsyncWebServerRequest *request) {}, 
+    
+    _esp.server->on("/clockconfig", HTTP_GET, [&](AsyncWebServerRequest *request) {
+        String response;
+        response = _getClockConfigJson(false, false);
+        request->send(200, "application/json", response);
+    });
+
+    _esp.server->on("/clockconfig", HTTP_POST, [](AsyncWebServerRequest *request){},
+                    NULL, [this](AsyncWebServerRequest * request, uint8_t *data, size_t len, size_t index, size_t total) {
+        String response;
+        String body;
+        ClockConfig incomingConfig;
+        if(len > 0) {
+            body = String((const char *) data);
+            incomingConfig = _createClockConfigFromJson(body);
+        }
+        _clockConfig = incomingConfig;
+        _applyClockConfig();
+        response = _getClockConfigJson(false, false);
+        request->send(200, "application/json", response);
+    });
+
+/*    _esp.server->on("/clockconfig", HTTP_ANY, [](AsyncWebServerRequest *request) {}, 
                     NULL, 
                     [this](AsyncWebServerRequest * request, uint8_t *data, size_t len, size_t index, size_t total) {
         String response;
         String body;
         ClockConfig incomingConfig;
+
+        if(_debug)
+            Serial.println("Received clockconfig request");
 
         if(len > 0) {
             body = String((const char *) data);
@@ -287,7 +296,7 @@ void ESPClock::_setEndPoints() {
                     || incomingConfig.blink != _clockConfig.blink
                     || incomingConfig.brightness != _clockConfig.brightness
                     || incomingConfig.dst != _clockConfig.dst
-                    || incomingConfig.twelveHours != _clockConfig.twelveHours
+                    || incomingConfig.twelveHours != _clockConfig.twelveHours>
                     || incomingConfig.tzOffset != _clockConfig.tzOffset) {
                 _clockConfig = incomingConfig;
                 _applyClockConfig();
@@ -301,7 +310,7 @@ void ESPClock::_setEndPoints() {
         }
 
         request->send(200, "application/json", response);
-    });
+    });*/
 }
 
 void ESPClock::_applyClockConfig() {
@@ -329,12 +338,12 @@ void ESPClock::_saveClockConfig() {
 }
 
 String ESPClock::_getClockConfigJson(bool persist, bool showPersist) {
-    String result =  "{\"alarmactive\":" + String(_clockConfig.alarmActive) + ",\"alarmtime\":" + String(_clockConfig.alarmTime)
-        + ",\"blink\":" + String(_clockConfig.blink) + ",\"brigtness\":" + String(_clockConfig.brightness) + ",\"dst\":" + String(_clockConfig.dst)
+    String result =  "{\"alarmactive\":" + _getBoolString(_clockConfig.alarmActive) + ",\"alarmtime\":" + String(_clockConfig.alarmTime)
+        + ",\"blink\":" + _getBoolString(_clockConfig.blink) + ",\"brightness\":" + String(_clockConfig.brightness) + ",\"dst\":" + _getBoolString(_clockConfig.dst)
         + ",\"tzoffset\":" + String(_clockConfig.tzOffset);
-    
+
     if(showPersist) {
-        result += ",\"persist\":" + String(persist);
+        result += ",\"persist\":" + _getBoolString(persist);
     }
 
     result += "}";
@@ -342,7 +351,17 @@ String ESPClock::_getClockConfigJson(bool persist, bool showPersist) {
     return result;
 }
 
+String ESPClock::_getBoolString(bool var) {
+    if(var)
+        return "true";
+
+    return "false";
+}
+
 void ESPClock::_setupClock() {
-    int tzOffset = _clockConfig.tzOffset - _clockConfig.dst ? 3600 : 0;
-    _timeClient = new NTPClient(_ntpUDP, "pool.ntp.org", tzOffset, _updateInterval);
+    configTime("CST6CDT,M3.2.0/2:00:00,M11.1.0/2:00:00", "pool.ntp.org");
+    getLocalTime(&timeinfo);
+
+    if(_debug)
+        Serial.printf("Time: %d:%d\n", timeinfo.tm_hour, timeinfo.tm_min);
 }
