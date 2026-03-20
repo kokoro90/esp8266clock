@@ -33,8 +33,6 @@ ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buz
         clockConfigJson["alarmactive"] = _clockConfig.alarmActive;
         clockConfigJson["twelvehours"] = _clockConfig.twelveHours;
         clockConfigJson["tzstring"] = _clockConfig.tzString;
-        clockConfigJson["tzoffset"] = _clockConfig.tzOffset;
-        clockConfigJson["dst"] = _clockConfig.dst;
 
         configFile = LittleFS.open(_configFileName, "w");
         serializeJson(clockConfigJson, configFile);
@@ -291,16 +289,6 @@ void ESPClock::_setEndPoints() {
             if(newClockConfig["twelvehours"].is<bool>() && newClockConfig["twelvehours"] != _clockConfig.twelveHours)
                 _clockConfig.twelveHours = newClockConfig["twelvehours"];
 
-            if(newClockConfig["tzoffset"].is<int>() && newClockConfig["tzoffset"] != _clockConfig.tzOffset) {
-                _clockConfig.tzOffset = newClockConfig["tzsoffset"];
-                timeChange = true;
-            }
-
-            if(newClockConfig["dst"].is<bool>() && newClockConfig["dst"] != _clockConfig.dst) {
-                _clockConfig.dst = newClockConfig["dst"];
-                timeChange = true;
-            }
-
             if(newClockConfig["tzstring"].is<const char*>() && newClockConfig["tzstring"] != _clockConfig.tzString) {
                 _clockConfig.tzString = newClockConfig["tzstring"];
                 timeChange = true;
@@ -309,7 +297,7 @@ void ESPClock::_setEndPoints() {
             }
 
             if(timeChange)
-                _setTZOffset();
+                _setTZString();
 
             serializeJson(newClockConfig, response);
 
@@ -324,9 +312,8 @@ void ESPClock::_setEndPoints() {
                 || oldClockConfig["alarmtime"] != _clockConfig.alarmTime
                 || oldClockConfig["alarmactive"] != _clockConfig.alarmActive
                 || oldClockConfig["twelvehours"] != _clockConfig.twelveHours
-                || oldClockConfig["tzstring"] != _clockConfig.tzString
-                || oldClockConfig["tzoffset"] != _clockConfig.tzOffset
-                || oldClockConfig["dst"] != _clockConfig.dst) {
+                || oldClockConfig["tzstring"] != _clockConfig.tzString) {
+
                 if(_debug) Serial.println("Writing new clockconfig data");
 
                 configFile = LittleFS.open(_configFileName, "w");
@@ -362,8 +349,6 @@ void ESPClock::_applyClockConfigFromJson(JsonDocument clockConfigJson) {
     _clockConfig.alarmActive = clockConfigJson["alarmactive"];
     _clockConfig.twelveHours = clockConfigJson["twelvehours"];
     _clockConfig.tzString = clockConfigJson["tzstring"];
-    _clockConfig.tzOffset = clockConfigJson["tzoffset"];
-    _clockConfig.dst = clockConfigJson["dst"];
 }
 
 JsonDocument ESPClock::_createJsonFromClockConfig() {
@@ -373,8 +358,6 @@ JsonDocument ESPClock::_createJsonFromClockConfig() {
     document["brightness"] = _clockConfig.brightness;
     document["alarmactive"] = _clockConfig.alarmActive;
     document["alarmtime"] = _clockConfig.alarmTime;
-    document["tzoffset"] = _clockConfig.tzOffset;
-    document["dst"] = _clockConfig.dst;
     document["twelvehours"] = _clockConfig.twelveHours;
     document["tzstring"] = _clockConfig.tzString;
 
@@ -392,10 +375,11 @@ void ESPClock::_setupClock() {
         Serial.printf("Time: %d:%d\n", timeinfo.tm_hour, timeinfo.tm_min);
 }
 
-void ESPClock::_setTZOffset() {
-    setTZ(_clockConfig.tzString);
-    getLocalTime(&timeinfo);
-
+void ESPClock::_setTZString() {
+    setenv("TZ", _clockConfig.tzString, 1);
+    tzset();
+    time_t now = time(nullptr);
+//    *timeinfo = localtime(&now);
     if(_debug)
         Serial.printf("Setting timezone to %s\n", _clockConfig.tzString);
 }

@@ -54,7 +54,7 @@ class ESPClock {
         void _applyClockConfigFromJson(JsonDocument clockConfigJson);
         JsonDocument _createJsonFromClockConfig();
         void _setupClock();
-        void _setTZOffset();
+        void _setTZString();
 };
 
 

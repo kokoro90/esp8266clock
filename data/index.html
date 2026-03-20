@@ -27,13 +27,8 @@
         <label for="twelveHours">12H</label><br />
     </div>
     <hr>
-    <div id="timezone-control">
-        <input type="number" id="tzOffset" onclick="setTZOffset();">
-        <label for="tzOffset">Timezone offset in seconds</label><br />
-    </div>
-    <hr>
     <div id="tzstring-control">
-        <input type="text" id="tzString" onclick="setTZString();">
+        <input type="text" id="tzString" onblur="setTZString();">
         <label for="tzString">POSIX Timezone String</label><br />
     </div>
     <hr>
@@ -52,7 +47,6 @@
     alarmActive = document.getElementById("alarmActive");
     twelveHours = document.getElementById("twelveHours");
     alarmstatus = document.getElementById("alarmstatus");
-    tzOffset = document.getElementById("tzOffset");
     tzString = document.getElementById("tzString");
 
     window.onload = function () {
@@ -136,24 +130,6 @@
 
     }
 
-    async function setTZOffset(){
-        try {
-            tzOffsetVal = parseInt(tzOffset.value);
-            const response = await fetch("/clockconfig", {
-                method: "POST",
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ tzoffset: tzOffsetVal }),
-            });
-
-            const result = await response.json();
-        } catch (error) {
-            console.error(error.message);
-        }
-        
-    }
-
     async function changeBrightness(direction) {
         brightnessVal = parseInt(brightness.textContent);
 
@@ -196,6 +172,7 @@
             alarmTime.value = alarmTimeStr.substring(0, 2) + ":" + alarmTimeStr.substring(2, 4);
             alarmActive.checked = result.alarmactive;
             twelveHours.checked = result.twelvehours;
+            tzstring = result.tzString;
 
             console.log(result);
         } catch (error) {
