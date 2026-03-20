@@ -30,6 +30,7 @@ ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buz
         _saveClockConfig();
     }
 
+    _display.setBrightness(_clockConfig.brightness);
     _display.clear();
     _setupClock();
     _setEndPoints();
