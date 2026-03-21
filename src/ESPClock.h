@@ -23,8 +23,7 @@ class ESPClock {
             uint16_t alarmTime = 600;
             bool alarmActive = false;
             bool twelveHours = false;
-            int tzOffset = 21600;
-            bool dst = false;
+            String tzString = "CST6CDT,M3.2.0/2:00:00,M11.1.0/2:00:00";
         };
         ClockConfig _clockConfig;
         struct tm timeinfo;
@@ -42,7 +41,7 @@ class ESPClock {
         bool _alarmOn = false;
 
         void _applyClockConfig();
-        ClockConfig _createClockConfigFromJson(String json);
+        void _addToClockConfigFromJson(String json);
         void _saveClockConfig();
         String _getClockConfigJson(bool persist, bool showPersist);
         void _displayTime();

@@ -25,7 +25,7 @@ ESPClock::ESPClock(bool debug, int dio_pin, int clk_pin, int button_pin, int buz
     if(LittleFS.exists(_configFileName)) {
         configFile = LittleFS.open(_configFileName, "r");
         String configContent = configFile.readString();
-        _createClockConfigFromJson(configContent);
+        _addToClockConfigFromJson(configContent);
     } else {
         _saveClockConfig();
     }
@@ -262,9 +262,8 @@ void ESPClock::_setEndPoints() {
         ClockConfig incomingConfig;
         if(len > 0) {
             body = String((const char *) data);
-            incomingConfig = _createClockConfigFromJson(body);
+            _addToClockConfigFromJson(body);
         }
-        _clockConfig = incomingConfig;
         _applyClockConfig();
         response = _getClockConfigJson(false, false);
         request->send(200, "application/json", response);
@@ -316,20 +315,29 @@ void ESPClock::_setEndPoints() {
 
 void ESPClock::_applyClockConfig() {
     _display.setBrightness(_clockConfig.brightness);
-    _setupClock();
+    setTZ(_clockConfig.tzString.c_str());
 }
 
-ESPClock::ClockConfig ESPClock::_createClockConfigFromJson(String json) {
+void ESPClock::_addToClockConfigFromJson(String json) {
     ClockConfig configFromJson;
-    configFromJson.alarmActive = jsonExtract(json, "alarmactive") == "true";
-    configFromJson.alarmTime = jsonExtract(json, "alarmtime").toInt();
-    configFromJson.blink = jsonExtract(json, "blink") == "true";
-    configFromJson.brightness = jsonExtract(json, "brightness").toInt();
-    configFromJson.dst = jsonExtract(json, "dst") == "true";
-    configFromJson.twelveHours = jsonExtract(json, "twelvehours") == "true";
-    configFromJson.tzOffset = jsonExtract(json, "tzoffset").toInt();
 
-    return configFromJson;
+    String alarmActive = jsonExtract(json, "alarmactive");
+    if(!alarmActive.isEmpty()) _clockConfig.alarmActive = alarmActive.equals("true");
+
+    String alarmTime = jsonExtract(json, "alarmtime");
+    if(!alarmTime.isEmpty()) _clockConfig.alarmTime = alarmTime.toInt();
+
+    String blink = jsonExtract(json, "blink");
+    if(!blink.isEmpty()) _clockConfig.blink = blink.equals("true");
+
+    String brightness = jsonExtract(json, "brightness");
+    if(!brightness.isEmpty()) _clockConfig.brightness = brightness.toInt();
+
+    String twelveHours = jsonExtract(json, "twelvehours");
+    if(!twelveHours.isEmpty()) _clockConfig.twelveHours = twelveHours.equals("true");
+
+    String tzString = jsonExtract(json, "tzstring");
+    if(!tzString.isEmpty()) _clockConfig.tzString = tzString;
 }
 
 void ESPClock::_saveClockConfig() {
@@ -340,8 +348,8 @@ void ESPClock::_saveClockConfig() {
 
 String ESPClock::_getClockConfigJson(bool persist, bool showPersist) {
     String result =  "{\"alarmactive\":" + _getBoolString(_clockConfig.alarmActive) + ",\"alarmtime\":" + String(_clockConfig.alarmTime)
-        + ",\"blink\":" + _getBoolString(_clockConfig.blink) + ",\"brightness\":" + String(_clockConfig.brightness) + ",\"dst\":" + _getBoolString(_clockConfig.dst)
-        + ",\"tzoffset\":" + String(_clockConfig.tzOffset);
+        + ",\"blink\":" + _getBoolString(_clockConfig.blink) + ",\"brightness\":" + String(_clockConfig.brightness) + 
+        + ",\"tzstring\":" + String(_clockConfig.tzString);
 
     if(showPersist) {
         result += ",\"persist\":" + _getBoolString(persist);
@@ -360,7 +368,7 @@ String ESPClock::_getBoolString(bool var) {
 }
 
 void ESPClock::_setupClock() {
-    configTime("CST6CDT,M3.2.0/2:00:00,M11.1.0/2:00:00", "pool.ntp.org");
+    configTime(_clockConfig.tzString.c_str(), "pool.ntp.org");
     getLocalTime(&timeinfo);
 
     if(_debug)
