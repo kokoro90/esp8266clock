@@ -42,6 +42,7 @@ class ESPClock {
 
         void _applyClockConfig();
         void _addToClockConfigFromJson(String json);
+        bool _hasClockConfigChanged();
         void _saveClockConfig();
         String _getClockConfigJson(bool persist, bool showPersist);
         void _displayTime();

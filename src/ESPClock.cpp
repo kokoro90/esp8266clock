@@ -259,7 +259,6 @@ void ESPClock::_setEndPoints() {
                     NULL, [this](AsyncWebServerRequest * request, uint8_t *data, size_t len, size_t index, size_t total) {
         String response;
         String body;
-        ClockConfig incomingConfig;
         if(len > 0) {
             body = String((const char *) data);
             _addToClockConfigFromJson(body);
@@ -269,48 +268,16 @@ void ESPClock::_setEndPoints() {
         request->send(200, "application/json", response);
     });
 
-/*    _esp.server->on("/clockconfig", HTTP_ANY, [](AsyncWebServerRequest *request) {}, 
-                    NULL, 
-                    [this](AsyncWebServerRequest * request, uint8_t *data, size_t len, size_t index, size_t total) {
+    _esp.server->on("/clockconfig", HTTP_PUT, [](AsyncWebServerRequest *request){},
+                    NULL, [this](AsyncWebServerRequest * request, uint8_t *data, size_t len, size_t index, size_t total) {
         String response;
-        String body;
-        ClockConfig incomingConfig;
+        bool configChanged = _hasClockConfigChanged();
 
-        if(_debug)
-            Serial.println("Received clockconfig request");
-
-        if(len > 0) {
-            body = String((const char *) data);
-            incomingConfig = _createClockConfigFromJson(body);
-        }
-
-        if(request->method() == HTTP_GET) {
-            response = _getClockConfigJson(false, false);
-        } else if(request->method() == HTTP_POST) {
-            _clockConfig = incomingConfig;
-            _applyClockConfig();
-            response = _getClockConfigJson(false, false);
-        } else if(request->method() == HTTP_PUT) {
-            if(incomingConfig.alarmActive != _clockConfig.alarmActive
-                    || incomingConfig.alarmTime != _clockConfig.alarmTime
-                    || incomingConfig.blink != _clockConfig.blink
-                    || incomingConfig.brightness != _clockConfig.brightness
-                    || incomingConfig.dst != _clockConfig.dst
-                    || incomingConfig.twelveHours != _clockConfig.twelveHours>
-                    || incomingConfig.tzOffset != _clockConfig.tzOffset) {
-                _clockConfig = incomingConfig;
-                _applyClockConfig();
-                _saveClockConfig();
-                response = _getClockConfigJson(true, true);
-            } else {
-                response = _getClockConfigJson(false, true);
-            }
-        } else {
-            response = "{\"error\":\"Invalid Request\"}";
-        }
-
+        if(configChanged)
+            _saveClockConfig();
+        response = _getClockConfigJson(configChanged, true);
         request->send(200, "application/json", response);
-    });*/
+    });
 }
 
 void ESPClock::_applyClockConfig() {
@@ -340,16 +307,74 @@ void ESPClock::_addToClockConfigFromJson(String json) {
     if(!tzString.isEmpty()) _clockConfig.tzString = tzString;
 }
 
+bool ESPClock::_hasClockConfigChanged() {
+    File configFile = LittleFS.open(_configFileName, "r");
+    String json = configFile.readString();
+
+    String alarmActive = jsonExtract(json, "alarmactive");
+    if(!alarmActive.isEmpty()) {
+        if(_clockConfig.alarmActive != alarmActive.equals("true")) {
+            Serial.println("Detected alarm active change");
+            return true;
+        }
+    }
+
+    String alarmTime = jsonExtract(json, "alarmtime");
+    if(!alarmTime.isEmpty()) {
+        if(_clockConfig.alarmTime != alarmTime.toInt()) {
+            Serial.println("Detected alarm time change");
+            return true;
+        }
+    }
+
+    String blink = jsonExtract(json, "blink");
+    if(!blink.isEmpty()) {
+        if(_clockConfig.blink != blink.equals("true")) {
+            Serial.println("Detected blink change");
+            return true;
+        }
+    }
+
+    String brightness = jsonExtract(json, "brightness");
+    if(!brightness.isEmpty()) {
+        if(_clockConfig.brightness != brightness.toInt()) {
+            Serial.println("Detected brightness change");
+            return true;
+        }
+    }
+
+    String twelveHours = jsonExtract(json, "twelvehours");
+    Serial.println("Checking twelve hours");
+    if(!twelveHours.isEmpty()) {
+        if(_clockConfig.twelveHours != twelveHours.equals("true")) {
+            Serial.println("Detected twelve hours change");
+            return true;
+        }
+    }
+
+    String tzString = jsonExtract(json, "tzstring");
+    if(!tzString.isEmpty()) {
+        if(!_clockConfig.tzString.equals(tzString)) {
+            Serial.println("TZ String change detected");
+            return true;
+        }
+    }
+
+    configFile.close();
+
+    return false;
+}
+
 void ESPClock::_saveClockConfig() {
-    File configFile = LittleFS.open("/clockconfig.json", "w");
+    File configFile = LittleFS.open(_configFileName, "w");
     configFile.print(_getClockConfigJson(false, false).c_str());
     configFile.close();
 }
 
 String ESPClock::_getClockConfigJson(bool persist, bool showPersist) {
     String result =  "{\"alarmactive\":" + _getBoolString(_clockConfig.alarmActive) + ",\"alarmtime\":" + String(_clockConfig.alarmTime)
-        + ",\"blink\":" + _getBoolString(_clockConfig.blink) + ",\"brightness\":" + String(_clockConfig.brightness) + 
-        + ",\"tzstring\":" + String(_clockConfig.tzString);
+        + ",\"blink\":" + _getBoolString(_clockConfig.blink) + ",\"brightness\":" + String(_clockConfig.brightness)
+        + ",\"twelvehours\":" + _getBoolString(_clockConfig.twelveHours) + ",\"tzstring\":\"" + String(_clockConfig.tzString) + "\"";
 
     if(showPersist) {
         result += ",\"persist\":" + _getBoolString(persist);
