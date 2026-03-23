@@ -3,15 +3,6 @@
 
 <body style="background-color: black; color: white;">
     <h1>Welcome to ESP8266 Clock</h1>
-    <div id="tzoffset">
-        <label for="offsetHours">Timezone offset from UTC (hours portion)</label>
-        <input type="number" id="offsetHours" min="-12" max="14" value="0"><br />
-        <label for="offsetHours">Timezone offset from UTC (minutes portion)</label>
-        <input type="number" id="offsetMinutes" min="0" max="45" step="15" value="0"><br />
-        <button id="settzoffset" onclick="setTZOffset();">Set time zone offset</button><br />
-
-
-    </div>
     <div id="brightness-control">
         Brightness<br />
         <span id="dec" onclick="changeBrightness(-1);" style="background-color: red; color: white;">&lt;</span><span
@@ -36,6 +27,11 @@
         <label for="twelveHours">12H</label><br />
     </div>
     <hr>
+    <div id="tzstring-control">
+        <input type="text" id="tzString" onblur="setTZString();">
+        <label for="tzString">POSIX Timezone String</label><br />
+    </div>
+    <hr>
     <button id="saveconfig" onclick="setData();">Save Configuration</button><br />
     <hr>
     <button id="alarmon" onclick="alarmOn();">Turn on alarm</button><br />
@@ -51,6 +47,7 @@
     alarmActive = document.getElementById("alarmActive");
     twelveHours = document.getElementById("twelveHours");
     alarmstatus = document.getElementById("alarmstatus");
+    tzString = document.getElementById("tzString");
 
     window.onload = function () {
         getData();
@@ -116,6 +113,23 @@
         }
     }
 
+    async function setTZString() {
+        try {
+            const response = await fetch("/clockconfig", {
+                method: "POST",
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ tzstring: tzString.value }),
+            });
+
+            const result = await response.json();
+        } catch (error) {
+            console.error(error.message);
+        }
+
+    }
+
     async function changeBrightness(direction) {
         brightnessVal = parseInt(brightness.textContent);
 
@@ -158,7 +172,7 @@
             alarmTime.value = alarmTimeStr.substring(0, 2) + ":" + alarmTimeStr.substring(2, 4);
             alarmActive.checked = result.alarmactive;
             twelveHours.checked = result.twelvehours;
-
+            tzString.value = result.tzstring;
             console.log(result);
         } catch (error) {
             console.error(error.message);
@@ -176,6 +190,7 @@
                 body: JSON.stringify({ persist: true }),
             });
 
+            const result = await response.json();
             console.log(result);
         } catch (error) {
             console.error(error.message);
