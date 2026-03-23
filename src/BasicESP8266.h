@@ -25,16 +25,11 @@
 #define BasicESP8266_h
 
 #include <ESP8266WiFi.h>
-//#include <ESP8266mDNS.h>
 #include "EEPROM.h"
 #include <ESPAsyncWebServer.h>
 #include <ArduinoOTA.h>
 #include "LittleFS.h"
 #include <WiFiUdp.h>
-#include <NTPClient.h>
-
-
-
 
 #define DPR(args...)    Serial.print(args)
 #define DPRLN(args...)    Serial.println(args)
@@ -44,7 +39,6 @@
 #define ESIZE 16
 #define MAXARGS 30
 #define SHOWWIFIPWD false
-#define ntp false
 
 class BasicESP8266
 {
@@ -88,13 +82,6 @@ class BasicESP8266
 
     WiFiClient espClient;
     AsyncWebServer *server;
-#ifdef ntp
-    WiFiUDP ntpUDP;
-    NTPClient *timeClient;
-    uint32_t getEpochTime();
-
-#endif
-
     unsigned long getUpdateInterval();
     bool apmode=true;
     bool mqtt=false;
@@ -113,16 +100,11 @@ class BasicESP8266
     "<tr><td>Static IP address (empty=DHCP):</td><td><input type='text' size='15' maxlength='15' name='adr' id='adr' value='##ip'></td></tr>\n"
     "<tr><td>Gateway:</td><td><input type='text' size='15' maxlength='15' name='gateway' id='gateway' value='##gateway'></td></tr>\n"
     "<tr><td>Netmask:</td><td><input type='text' size='15' maxlength='15' name='mask' id='mask' value='##netmask'></td></tr>"
-    "<tr><td>NTP Update Interval:</td><td><input type='text' size='15' maxlength='15' name='updateinterval' id='updateinterval' value='##updateinterval'></td></tr>"
-    "<tr><td>Timezone offset (in seconds):</td><td><input type='text' size='15' maxlength='15' name='tzoffset' id='tzoffset' value='##tzoffset'></td></tr>"
     "<tr><td>&#160;</td><td>&#160;</td></tr>\n"
     "</table>\n";
     String wifiHtml3=
     "<br><input type='submit' value='ok' name='ok'>\n"
     "</form>\n";
-
-
-
    
   private:    void _setup(AsyncWebServerRequest *request);
     bool _apPwd;

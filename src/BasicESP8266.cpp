@@ -65,12 +65,6 @@ void BasicESP8266::begin()
   _setConfig();
   _tryWifi();
 
-#ifdef ntp
-  timeClient=new NTPClient(ntpUDP, "pool.ntp.org", _tzoffset, _updateinterval);
-  timeClient->begin();
-  timeClient->update();
-#endif
-
   if (!apmode)
   {
     ArduinoOTA.setHostname(_mac.c_str());
@@ -83,14 +77,6 @@ void BasicESP8266::begin()
   }
 
 }
-
-#ifdef ntp
-uint32_t BasicESP8266::getEpochTime()
-{
-  timeClient->update();
-  return timeClient->getEpochTime();
-}
-#endif
 
 unsigned long BasicESP8266::getUpdateInterval()
 {

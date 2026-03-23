@@ -88,7 +88,7 @@ void ESPClock::_displayTime() {
     uint32_t current_time = hours * 10000 + minutes * 100 + timeinfo.tm_sec;
 
     if(_previousTime != current_time) {
-        if(current_time % 60 == 0) {
+        if(timeinfo.tm_sec == 0) {
             if(_debug) {
                 Serial.println("At the minute mark");
                 Serial.print("_alarmTime / 100=");
@@ -397,5 +397,5 @@ void ESPClock::_setupClock() {
     getLocalTime(&timeinfo);
 
     if(_debug)
-        Serial.printf("Time: %d:%d\n", timeinfo.tm_hour, timeinfo.tm_min);
+        Serial.printf("Time: %d:%02d\n", timeinfo.tm_hour, timeinfo.tm_min);
 }
