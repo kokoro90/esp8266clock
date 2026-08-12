@@ -26,6 +26,15 @@ class ESPClock {
             String tzString = "CST6CDT,M3.2.0/2:00:00,M11.1.0/2:00:00";
         };
         ClockConfig _clockConfig;
+        struct AlarmConfig {
+            bool active = false;
+            uint16_t alarmTime;
+            uint8_t repeat;
+            uint8_t day;
+            uint8_t month;
+            uint16_t year;
+        };
+        AlarmConfig _alarms[20];
         struct tm timeinfo;
         enum _state { CLOCK, ALARMTIME, ON, OFF, TIMER };
         enum _state _displayState;
